@@ -1,0 +1,46 @@
+#!/bin/bash
+# chomsky-monitor-rotate: rotate the focused monitor +/- 90 degrees.
+#
+# Hyprland's `monitor` transform is 0-7 (0=normal,1=90,2=180,3=270,then
+# flipped variants 4-7). This only steps through 0/1/2/3.
+
+set -euo pipefail
+
+DIRECTION="${1:-}"
+if [[ "$DIRECTION" != "cw" && "$DIRECTION" != "ccw" ]]; then
+  echo "Usage: chomsky-monitor-rotate <cw|ccw>" >&2
+  exit 1
+fi
+
+MONITOR="$(omarchy-hyprland-monitor-focused)"
+if [[ -z "$MONITOR" ]]; then
+  echo "chomsky-monitor-rotate: could not determine focused monitor" >&2
+  exit 1
+fi
+
+# `hyprctl keyword monitor ...` refuses to run on Lua-parser Hyprland builds
+# ("keyword can't work with non-legacy parsers. Use eval."), and hl.monitor()
+# via eval silently no-ops on a transform-only call -- it only takes effect
+# alongside mode/position/scale, so pull the monitor's current live values and
+# reissue the full spec through `hyprctl eval` with the new transform.
+read -r CURRENT WIDTH HEIGHT REFRESH X Y SCALE < <(
+  hyprctl monitors -j | jq -r --arg m "$MONITOR" \
+    '.[] | select(.name==$m) | "\(.transform) \(.width) \(.height) \(.refreshRate) \(.x) \(.y) \(.scale)"'
+)
+
+if [[ -z "${CURRENT:-}" ]]; then
+  echo "chomsky-monitor-rotate: monitor '$MONITOR' not found" >&2
+  exit 1
+fi
+
+if [[ "$DIRECTION" == "cw" ]]; then
+  NEW=$(( (CURRENT % 4 + 1) % 4 ))
+else
+  NEW=$(( (CURRENT % 4 + 3) % 4 ))
+fi
+
+MODE="${WIDTH}x${HEIGHT}@${REFRESH}"
+POSITION="${X}x${Y}"
+
+hyprctl eval "hl.monitor({ output = \"$MONITOR\", mode = \"$MODE\", position = \"$POSITION\", scale = $SCALE, transform = $NEW })" >/dev/null
+echo "Rotated $MONITOR to transform $NEW"

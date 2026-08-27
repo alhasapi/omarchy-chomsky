@@ -1,0 +1,72 @@
+#!/bin/bash
+# chomsky-menu-entry: companion script for the Style > Animation / Style >
+# Shader rows chomsky-menu-install adds to the user's Omarchy menu extension.
+# Copied into ~/.config/omarchy/extensions/ at install time so the rows keep
+# working -- and can clean themselves up -- even after the plugin is fully
+# removed (which deletes chomsky-menu-install along with the rest of the
+# plugin directory, so the removal logic below is self-contained rather than
+# delegated back to it).
+
+set -euo pipefail
+
+PLUGIN_ID='alhasapi.chomsky'
+PLUGIN_BIN="$HOME/.config/omarchy/plugins/$PLUGIN_ID/bin"
+EXT="${OMARCHY_MENU_EXTENSION:-$HOME/.config/omarchy/extensions/omarchy-menu.jsonc}"
+START='// >>> chomsky-menu >>>'
+END='// <<< chomsky-menu <<<'
+
+remove_stale_rows() {
+  [[ -f "$EXT" ]] || return 0
+  grep -qF "$START" "$EXT" || return 0
+
+  local start_esc end_esc
+  start_esc=$(printf '%s' "$START" | sed 's/[.[\*^$/]/\\&/g')
+  end_esc=$(printf '%s' "$END" | sed 's/[.[\*^$/]/\\&/g')
+  sed -i "\@^[[:space:]]*${start_esc}[[:space:]]*\$@,\@^[[:space:]]*${end_esc}[[:space:]]*\$@d" "$EXT"
+
+  # Whatever entry now sits immediately before the file's closing brace must
+  # not carry a trailing comma.
+  local close_line prev
+  close_line=$(grep -n '^}' "$EXT" | tail -n1 | cut -d: -f1) || return 0
+  [[ -n "$close_line" ]] || return 0
+  prev=$((close_line - 1))
+  while (( prev > 0 )); do
+    local trimmed
+    trimmed=$(sed -n "${prev}p" "$EXT" | sed 's@^[[:space:]]*@@')
+    [[ -n $trimmed && ${trimmed:0:1} != "/" ]] && break
+    prev=$((prev - 1))
+  done
+  (( prev > 0 )) || return 0
+  local last_trimmed
+  last_trimmed=$(sed -n "${prev}p" "$EXT" | sed 's@[[:space:]]*$@@')
+  if [[ $last_trimmed != "{" && ${last_trimmed: -1} == "," ]]; then
+    sed -i "${prev}s/,\$//" "$EXT"
+  fi
+
+  if command -v omarchy-notification-send >/dev/null 2>&1; then
+    omarchy-notification-send -u normal "Chomsky" "Plugin is disabled — menu rows removed" -t 4000 >/dev/null 2>&1 || true
+  fi
+}
+
+MODE="${1:-}"
+
+case "$MODE" in
+  animation|shader|shader-off)
+    if [[ -x "$PLUGIN_BIN/chomsky-anim" && -x "$PLUGIN_BIN/chomsky-shader" ]]; then
+      case "$MODE" in
+        animation) exec "$PLUGIN_BIN/chomsky-anim" menu ;;
+        shader) exec "$PLUGIN_BIN/chomsky-shader" menu ;;
+        shader-off) exec "$PLUGIN_BIN/chomsky-shader" off ;;
+      esac
+    fi
+    # Plugin files are gone (removed, not just disabled): clean up.
+    remove_stale_rows
+    ;;
+  --remove)
+    remove_stale_rows
+    ;;
+  *)
+    echo "Usage: chomsky-menu-entry <animation|shader|shader-off|--remove>" >&2
+    exit 1
+    ;;
+esac

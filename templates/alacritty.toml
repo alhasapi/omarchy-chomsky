@@ -1,0 +1,75 @@
+# Dusky-derived matugen template, fixed for wallpaper-driven theming.
+#
+# The original Dusky template (dusky/.config/matugen/templates/alacritty.toml)
+# hardcodes [colors.bright] and colors.normal.black/white to fixed Catppuccin
+# hex literals -- every generated theme would share identical bright colors
+# regardless of wallpaper. omarchy-theme-colors-from-alacritty reads
+# colors.normal.* into color0-7 and colors.bright.* into color8-15, so this
+# matters. Every entry below derives from the wallpaper's extracted palette
+# instead.
+
+[colors.primary]
+background = '{{colors.background.default.hex}}'
+foreground = '{{colors.on_surface.default.hex}}'
+
+[colors.cursor]
+text = '{{colors.on_surface.default.hex}}'
+cursor = '{{colors.on_surface_variant.default.hex}}'
+
+[colors.vi_mode_cursor]
+text = '{{colors.background.default.hex}}'
+cursor = '{{colors.primary.default.hex}}'
+
+[colors.search.matches]
+foreground = '{{colors.surface_variant.default.hex}}'
+background = '{{colors.tertiary.default.hex}}'
+
+[colors.search.focused_match]
+foreground = '{{colors.surface_variant.default.hex}}'
+background = '{{colors.primary.default.hex}}'
+
+[colors.footer_bar]
+foreground = '{{colors.surface_variant.default.hex}}'
+background = '{{colors.inverse_surface.default.hex}}'
+
+[colors.hints.start]
+foreground = '{{colors.surface_variant.default.hex}}'
+background = '{{colors.secondary.default.hex}}'
+
+[colors.hints.end]
+foreground = '{{colors.surface_variant.default.hex}}'
+background = '{{colors.secondary.default.hex}}'
+
+[colors.selection]
+text = '{{colors.background.default.hex}}'
+background = '{{colors.primary.default.hex}}'
+
+[colors.normal]
+black   = '{{colors.background.default.hex | to_color | set_lightness: 8}}'
+red     = '{{colors.error.default.hex}}'
+green   = '{{colors.primary.default.hex}}'
+yellow  = '{{colors.tertiary.default.hex}}'
+blue    = '{{colors.secondary.default.hex}}'
+magenta = '{{colors.tertiary.default.hex | to_color | set_hue: 300}}'
+cyan    = '{{colors.secondary.default.hex | to_color | set_hue: 190}}'
+white   = '{{colors.on_surface.default.hex | to_color | set_lightness: 85}}'
+
+[colors.bright]
+black   = '{{colors.background.default.hex | to_color | set_lightness: 25}}'
+red     = '{{colors.error.default.hex | to_color | lighten: 15}}'
+green   = '{{colors.primary.default.hex | to_color | lighten: 15}}'
+yellow  = '{{colors.tertiary.default.hex | to_color | lighten: 15}}'
+blue    = '{{colors.secondary.default.hex | to_color | lighten: 15}}'
+magenta = '{{colors.tertiary.default.hex | to_color | set_hue: 300 | lighten: 15}}'
+cyan    = '{{colors.secondary.default.hex | to_color | set_hue: 190 | lighten: 15}}'
+white   = '{{colors.on_surface.default.hex | to_color | set_lightness: 95}}'
+
+[colors.dim]
+black   = '{{colors.background.default.hex | to_color | set_lightness: 15}}'
+red     = '{{colors.error.default.hex | to_color | set_lightness: 40}}'
+green   = '{{colors.primary.default.hex | to_color | set_lightness: 40}}'
+yellow  = '{{colors.tertiary.default.hex | to_color | set_lightness: 40}}'
+blue    = '{{colors.secondary.default.hex | to_color | set_lightness: 40}}'
+magenta = '{{colors.tertiary.default.hex | to_color | set_hue: 300 | set_lightness: 40}}'
+cyan    = '{{colors.secondary.default.hex | to_color | set_hue: 190 | set_lightness: 40}}'
+white   = '{{colors.on_surface.default.hex | to_color | set_lightness: 70}}'

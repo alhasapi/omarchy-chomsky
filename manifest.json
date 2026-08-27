@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "id": "alhasapi.chomsky",
+  "name": "Chomsky",
+  "version": "2.0.0",
+  "author": "alhasapi",
+  "license": "MIT",
+  "homepage": "https://github.com/alhasapi/omarchy-chomsky",
+  "description": "Unified manager for a Dusky-derived look & feel: animation presets, screen shaders, border-resize/dim window behavior, monitor rotation, and wallpaper-driven themes -- all bundled, no other config edits required.",
+  "kinds": ["bar-widget"],
+  "entryPoints": { "barWidget": "BarWidget.qml" },
+  "barWidget": {
+    "displayName": "Chomsky",
+    "description": "Animations, shaders, window behavior, monitor rotation, and wallpaper themes in one panel",
+    "category": "System",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "dimStrength": 0.15
+    },
+    "schema": [
+      {
+        "key": "dimStrength",
+        "type": "number",
+        "label": "Default dim strength",
+        "description": "Inactive-window dim applied when Window behavior is first turned on",
+        "min": 0,
+        "max": 0.7,
+        "step": 0.05,
+        "defaultValue": 0.15
+      }
+    ]
+  }
+}

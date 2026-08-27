@@ -1,0 +1,25 @@
+This project bundles third-party assets under their own licenses, in addition
+to the MIT-licensed code in this repository (see LICENSE).
+
+## Animation presets and screen shaders (animations/, shaders/)
+
+Ported from Dusky (https://github.com/dusklinux/dusky), MIT License:
+
+  Copyright (c) 2026 dusklinux, dusky
+
+Used verbatim aside from stripping Dusky's commented vertical-bar animation
+variants (this plugin targets Omarchy's horizontal Quickshell bar only) and
+correcting one shader's filename that didn't match its content.
+
+## icon.png
+
+  "Noam Chomsky portrait 2015" by Augusto Starita / Ministerio de Cultura de
+  la Nación (Argentina), via Wikimedia Commons:
+  https://commons.wikimedia.org/wiki/File:Noam_Chomsky_portrait_2015.jpg
+
+  Licensed under Creative Commons Attribution-ShareAlike 2.0 Generic
+  (CC BY-SA 2.0): https://creativecommons.org/licenses/by-sa/2.0/
+
+  Cropped to a circle and downscaled for use as this plugin's icon. As a
+  derivative work, icon.png is itself licensed CC BY-SA 2.0 -- this does not
+  affect the MIT license covering the rest of the repository.

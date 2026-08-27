@@ -1,0 +1,143 @@
+#!/bin/bash
+# chomsky-anim: switch between Dusky-derived Hyprland animation presets.
+#
+# Presets live in <plugin>/animations/*.lua, shipped with the plugin so a
+# fresh install has them without editing anyone's hyprland config. Applying a
+# preset writes it into Omarchy's own toggle-flag directory
+# (~/.local/state/omarchy/toggles/hypr/chomsky-animation.lua), which
+# default/hypr/toggles.lua sources on every reload -- after hypr.looknfeel, so
+# it always wins, and Omarchy's default looknfeel.lua replays every animation
+# leaf before toggles load, giving each switch a clean baseline. No require()
+# line needed in the user's own config.
+
+set -euo pipefail
+
+readonly PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+readonly ANIM_DIR="$PLUGIN_DIR/animations"
+readonly TOGGLE_DIR="$HOME/.local/state/omarchy/toggles/hypr"
+readonly TOGGLE_FILE="$TOGGLE_DIR/chomsky-animation.lua"
+readonly STATE_DIR="$HOME/.local/state/chomsky"
+readonly STATE_FILE="$STATE_DIR/animation"
+
+err() { echo "chomsky-anim: $*" >&2; }
+
+reload_hyprland() {
+  command -v hyprctl &>/dev/null && hyprctl reload &>/dev/null || true
+}
+
+list_presets() {
+  local f name
+  for f in "$ANIM_DIR"/*.lua; do
+    name="$(basename "$f" .lua)"
+    printf '%s\n' "$name"
+  done | sort
+}
+
+current_preset() {
+  if [[ -f "$STATE_FILE" ]]; then
+    cat "$STATE_FILE"
+  else
+    echo "(none)"
+  fi
+}
+
+resolve_preset_file() {
+  local name="$1"
+  local f="$ANIM_DIR/$name.lua"
+  [[ -f "$f" ]] && printf '%s\n' "$f" || return 1
+}
+
+apply_preset() {
+  local name="$1"
+  local src
+  if ! src="$(resolve_preset_file "$name")"; then
+    err "unknown preset: $name (try 'chomsky-anim list')"
+    exit 1
+  fi
+
+  mkdir -p "$TOGGLE_DIR" "$STATE_DIR"
+
+  # mktemp in the SAME directory as the destination so the final mv is an
+  # atomic same-filesystem inode swap.
+  local tmp
+  tmp="$(mktemp "$TOGGLE_DIR/.chomsky-animation.XXXXXX.tmp")"
+  trap 'rm -f "$tmp"' EXIT
+  cp -- "$src" "$tmp"
+  chmod 644 "$tmp"
+  mv -f -- "$tmp" "$TOGGLE_FILE"
+  trap - EXIT
+
+  printf '%s\n' "$name" > "$STATE_FILE"
+  reload_hyprland
+  echo "Animation set to: $name"
+}
+
+next_preset() {
+  local direction="${1:-next}"
+  mapfile -t presets < <(list_presets)
+  local total="${#presets[@]}"
+  if (( total == 0 )); then
+    err "no presets found in $ANIM_DIR"
+    exit 1
+  fi
+
+  local cur idx=-1
+  cur="$(current_preset)"
+  for i in "${!presets[@]}"; do
+    if [[ "${presets[$i]}" == "$cur" ]]; then
+      idx=$i
+      break
+    fi
+  done
+
+  local new_idx
+  if [[ "$direction" == "prev" ]]; then
+    if (( idx <= 0 )); then new_idx=$(( total - 1 )); else new_idx=$(( idx - 1 )); fi
+  else
+    if (( idx == -1 )); then new_idx=0; else new_idx=$(( (idx + 1) % total )); fi
+  fi
+
+  apply_preset "${presets[$new_idx]}"
+}
+
+menu() {
+  mapfile -t presets < <(list_presets)
+  local choice
+  choice="$(omarchy-menu-select "Animation" "${presets[@]}" -- --width 30)" || exit 0
+  [[ -n "$choice" ]] && apply_preset "$choice"
+}
+
+usage() {
+  cat >&2 <<EOF
+Usage: chomsky-anim <command> [args]
+
+Commands:
+  list            List available animation presets
+  set <name>      Apply a preset by name
+  current         Print the active preset name
+  next            Cycle to the next preset
+  prev            Cycle to the previous preset
+  off             Apply the 'disable' preset (no animations)
+  menu            Pick a preset interactively
+EOF
+  exit 1
+}
+
+main() {
+  local cmd="${1:-}"
+  case "$cmd" in
+    list) list_presets ;;
+    set)
+      [[ -n "${2:-}" ]] || { err "set requires a preset name"; exit 1; }
+      apply_preset "$2"
+      ;;
+    current) current_preset ;;
+    next) next_preset next ;;
+    prev) next_preset prev ;;
+    off) apply_preset disable ;;
+    menu) menu ;;
+    *) usage ;;
+  esac
+}
+
+main "$@"

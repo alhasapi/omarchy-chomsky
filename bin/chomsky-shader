@@ -1,0 +1,177 @@
+#!/bin/bash
+# chomsky-shader: switch Hyprland screen shaders (Dusky-derived GLSL set).
+#
+# Shaders live in <plugin>/shaders/*.glsl, shipped with the plugin, with a
+# fallback scan of /usr/share/hyprshade/shaders for any system-installed
+# extras. Applies via `hyprctl eval` -- `hyprctl keyword` refuses
+# decoration:screen_shader on Lua-parser Hyprland builds ("keyword can't work
+# with non-legacy parsers. Use eval.").
+
+set -euo pipefail
+
+readonly PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+readonly SHADER_DIRS=("$PLUGIN_DIR/shaders" "/usr/share/hyprshade/shaders")
+readonly STATE_DIR="$HOME/.local/state/chomsky"
+readonly STATE_FILE="$STATE_DIR/shader"
+
+err() { echo "chomsky-shader: $*" >&2; }
+
+list_shaders() {
+  local dir f name
+  for dir in "${SHADER_DIRS[@]}"; do
+    [[ -d "$dir" ]] || continue
+    for f in "$dir"/*.glsl "$dir"/*.frag; do
+      [[ -f "$f" ]] || continue
+      name="$(basename "$f")"
+      name="${name%.glsl}"
+      name="${name%.frag}"
+      printf '%s\n' "$name"
+    done
+  done | sort -u
+}
+
+resolve_shader_path() {
+  local name="$1"
+  local dir ext
+  for dir in "${SHADER_DIRS[@]}"; do
+    for ext in glsl frag; do
+      if [[ -f "$dir/$name.$ext" ]]; then
+        printf '%s\n' "$dir/$name.$ext"
+        return 0
+      fi
+    done
+  done
+  return 1
+}
+
+current_shader() {
+  if [[ -f "$STATE_FILE" ]]; then
+    cat "$STATE_FILE"
+  else
+    echo "off"
+  fi
+}
+
+apply_off() {
+  hyprctl eval 'hl.config({ decoration = { screen_shader = "" } })' >/dev/null
+  mkdir -p "$STATE_DIR"
+  echo "off" > "$STATE_FILE"
+  echo "Shader off"
+}
+
+apply_shader() {
+  local name="$1"
+  local path
+  if ! path="$(resolve_shader_path "$name")"; then
+    err "unknown shader: $name (try 'chomsky-shader list')"
+    exit 1
+  fi
+  hyprctl eval "hl.config({ decoration = { screen_shader = \"$path\" } })" >/dev/null
+  mkdir -p "$STATE_DIR"
+  printf '%s\n' "$name" > "$STATE_FILE"
+  echo "Shader set to: $name"
+}
+
+# Re-apply whatever shader is on record. Used at shell startup by the bar
+# widget instead of a hook in ~/.config/hypr/autostart.lua, so a fresh install
+# needs no edits to the user's own config.
+restore() {
+  local cur
+  cur="$(current_shader)"
+  [[ "$cur" == "off" ]] && return 0
+  resolve_shader_path "$cur" &>/dev/null || return 0
+  hyprctl eval "hl.config({ decoration = { screen_shader = \"$(resolve_shader_path "$cur")\" } })" >/dev/null
+}
+
+toggle() {
+  local cur
+  cur="$(current_shader)"
+  if [[ "$cur" == "off" ]]; then
+    mapfile -t shaders < <(list_shaders)
+    if (( ${#shaders[@]} == 0 )); then
+      err "no shaders found"
+      exit 1
+    fi
+    apply_shader "${shaders[0]}"
+  else
+    apply_off
+  fi
+}
+
+cycle() {
+  local direction="${1:-next}"
+  mapfile -t shaders < <(list_shaders)
+  local total="${#shaders[@]}"
+  if (( total == 0 )); then
+    err "no shaders found"
+    exit 1
+  fi
+
+  local cur idx=-1
+  cur="$(current_shader)"
+  for i in "${!shaders[@]}"; do
+    if [[ "${shaders[$i]}" == "$cur" ]]; then
+      idx=$i
+      break
+    fi
+  done
+
+  local new_idx
+  if [[ "$direction" == "prev" ]]; then
+    if (( idx <= 0 )); then new_idx=$(( total - 1 )); else new_idx=$(( idx - 1 )); fi
+  else
+    if (( idx == -1 )); then new_idx=0; else new_idx=$(( (idx + 1) % total )); fi
+  fi
+
+  apply_shader "${shaders[$new_idx]}"
+}
+
+menu() {
+  mapfile -t shaders < <(list_shaders)
+  local choice
+  choice="$(omarchy-menu-select "Shader" "Off" "${shaders[@]}" -- --width 30)" || exit 0
+  if [[ "$choice" == "Off" ]]; then
+    apply_off
+  elif [[ -n "$choice" ]]; then
+    apply_shader "$choice"
+  fi
+}
+
+usage() {
+  cat >&2 <<EOF
+Usage: chomsky-shader <command> [args]
+
+Commands:
+  list            List available shaders
+  set <name>      Apply a shader by name
+  off             Clear the active shader
+  toggle          Turn the last/first shader on, or off if one is active
+  current         Print the active shader name ("off" if none)
+  next            Cycle to the next shader
+  prev            Cycle to the previous shader
+  restore         Re-apply the recorded shader (used at shell startup)
+  menu            Pick a shader interactively
+EOF
+  exit 1
+}
+
+main() {
+  local cmd="${1:-}"
+  case "$cmd" in
+    list) list_shaders ;;
+    set)
+      [[ -n "${2:-}" ]] || { err "set requires a shader name"; exit 1; }
+      apply_shader "$2"
+      ;;
+    off) apply_off ;;
+    toggle) toggle ;;
+    current) current_shader ;;
+    next) cycle next ;;
+    prev) cycle prev ;;
+    restore) restore ;;
+    menu) menu ;;
+    *) usage ;;
+  esac
+}
+
+main "$@"

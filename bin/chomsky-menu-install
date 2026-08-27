@@ -1,0 +1,141 @@
+#!/bin/bash
+# chomsky-menu-install: install or remove the Style > Animation / Style >
+# Shader rows in the Omarchy menu (~/.config/omarchy/extensions/omarchy-menu.jsonc).
+#
+# The rows are wrapped in a single marker-delimited block. Removal uses sed's
+# own line-range address (`/start/,/end/d`) rather than manual line-number
+# arithmetic, and a generic trailing-comma fixup runs after every edit
+# against whatever the *actual* last entry turns out to be -- so the block's
+# position relative to other rows never matters for JSON validity.
+#
+# The row action points at a companion script (chomsky-menu-entry) copied
+# into the same extensions directory, so the rows keep working -- and can
+# clean themselves up -- even after the plugin is disabled or removed.
+#
+# Install is idempotent: it always removes any existing block first, then
+# inserts a fresh one, so re-running (e.g. after `omarchy plugin update`)
+# just replaces it in place.
+#
+# `--remove` takes the block back out without reinstalling.
+
+set -euo pipefail
+
+EXT="${OMARCHY_MENU_EXTENSION:-$HOME/.config/omarchy/extensions/omarchy-menu.jsonc}"
+EXT_DIR="$(dirname "$EXT")"
+ENTRY="$EXT_DIR/chomsky-menu-entry"
+START='// >>> chomsky-menu >>>'
+END='// <<< chomsky-menu <<<'
+
+MODE=install
+case "${1:-}" in
+  -h|--help)
+    echo "Usage: chomsky-menu-install [--remove]"
+    exit 0
+    ;;
+  --remove|--uninstall)
+    MODE=remove
+    ;;
+  "") ;;
+  *)
+    echo "chomsky-menu-install: unknown option: $1" >&2
+    exit 1
+    ;;
+esac
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+mkdir -p "$EXT_DIR"
+install -m 755 "$SCRIPT_DIR/chomsky-menu-entry" "$ENTRY"
+
+# Emit the managed block to stdout, one row per line, no trailing comma on
+# the last row (the caller/fixup pass reconciles commas around it).
+emit_block() {
+  printf '  %s\n' "$START"
+  printf '  "style.animation": {"icon":"󰸉","label":"Animation","aliases":["animation","animations"],"description":"Switch or cycle Hyprland animation presets","action":"%s animation","checked":"[ \\"$(%s current 2>/dev/null)\\" != \\"disable\\" ]"},\n' "$ENTRY" "$SCRIPT_DIR/chomsky-anim"
+  printf '  "style.shader": {"icon":"󰄄","label":"Shader","checked":"[ \\"$(%s current 2>/dev/null)\\" != \\"off\\" ]"},\n' "$SCRIPT_DIR/chomsky-shader"
+  printf '  "style.shader.pick": {"icon":"󰄄","label":"Pick shader...","aliases":["shader","shaders"],"action":"%s shader"},\n' "$ENTRY"
+  printf '  "style.shader.off": {"icon":"","label":"Turn off shader","when":"[ \\"$(%s current 2>/dev/null)\\" != \\"off\\" ]","action":"%s shader-off"}\n' "$SCRIPT_DIR/chomsky-shader" "$ENTRY"
+  printf '  %s\n' "$END"
+}
+
+# Strip a trailing comma off the last real (non-blank, non-comment) line
+# before the file's final closing brace -- whichever entry that happens to
+# be, ours or not.
+fix_trailing_comma() {
+  local close_line prev
+  close_line=$(grep -n '^}' "$EXT" | tail -n1 | cut -d: -f1) || return 0
+  [[ -n "$close_line" ]] || return 0
+  prev=$((close_line - 1))
+  while (( prev > 0 )); do
+    local trimmed
+    trimmed=$(sed -n "${prev}p" "$EXT" | sed 's@^[[:space:]]*@@')
+    [[ -n $trimmed && ${trimmed:0:1} != "/" ]] && break
+    prev=$((prev - 1))
+  done
+  (( prev > 0 )) || return 0
+  local last_trimmed
+  last_trimmed=$(sed -n "${prev}p" "$EXT" | sed 's@[[:space:]]*$@@')
+  if [[ $last_trimmed != "{" && ${last_trimmed: -1} == "," ]]; then
+    sed -i "${prev}s/,\$//" "$EXT"
+  fi
+}
+
+remove_block() {
+  [[ -f "$EXT" ]] || return 0
+  grep -qF "$START" "$EXT" || return 0
+  local start_esc end_esc
+  start_esc=$(printf '%s' "$START" | sed 's/[.[\*^$/]/\\&/g')
+  end_esc=$(printf '%s' "$END" | sed 's/[.[\*^$/]/\\&/g')
+  sed -i "\@^[[:space:]]*${start_esc}[[:space:]]*\$@,\@^[[:space:]]*${end_esc}[[:space:]]*\$@d" "$EXT"
+  fix_trailing_comma
+}
+
+if [[ "$MODE" == remove ]]; then
+  remove_block
+  exit 0
+fi
+
+# Idempotent: always start from a clean slate.
+remove_block
+
+if [[ ! -f "$EXT" ]]; then
+  {
+    echo "{"
+    emit_block
+    echo "}"
+  } >"$EXT"
+  exit 0
+fi
+
+close_line=$(grep -n '^}' "$EXT" | tail -n 1 | cut -d: -f1) || true
+if [[ -z $close_line ]]; then
+  # No line consisting of just "}" found -- e.g. a hand-written one-liner
+  # like "{}". Fail loudly rather than guess at structure and risk writing
+  # invalid JSON.
+  echo "chomsky-menu-install: $EXT doesn't have a closing brace on its own line; reformat it (or delete it to let this recreate it) and re-run" >&2
+  exit 1
+fi
+
+tmp="$(mktemp)"
+sed -n "1,$((close_line - 1))p" "$EXT" > "$tmp"
+emit_block >> "$tmp"
+sed -n "${close_line},\$p" "$EXT" >> "$tmp"
+mv -f "$tmp" "$EXT"
+
+fix_trailing_comma
+# The entry immediately before our freshly-inserted block also needs a
+# trailing comma now that our block follows it as a sibling key.
+prev_of_block=$(grep -nF "$START" "$EXT" | head -n1 | cut -d: -f1) || true
+if [[ -n "$prev_of_block" ]]; then
+  prev=$((prev_of_block - 1))
+  while (( prev > 0 )); do
+    trimmed=$(sed -n "${prev}p" "$EXT" | sed 's@^[[:space:]]*@@')
+    [[ -n $trimmed && ${trimmed:0:1} != "/" ]] && break
+    prev=$((prev - 1))
+  done
+  if (( prev > 0 )); then
+    last_trimmed=$(sed -n "${prev}p" "$EXT" | sed 's@[[:space:]]*$@@')
+    if [[ $last_trimmed != "{" && ${last_trimmed: -1} != "," ]]; then
+      sed -i "${prev}s/\$/,/" "$EXT"
+    fi
+  fi
+fi

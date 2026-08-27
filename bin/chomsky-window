@@ -1,0 +1,140 @@
+#!/bin/bash
+# chomsky-window: the Dusky "mouse behavior around windows" feel, as a
+# persistent toggle -- resize by dragging any border/gap (no modifier held)
+# plus inactive-window dimming.
+#
+# `hyprctl eval`/`keyword` alone is lost on the next `hyprctl reload`, and
+# switching an animation or shader calls reload. Omarchy's own
+# default/hypr/toggles.lua sources ~/.local/state/omarchy/toggles/hypr/*
+# entirely, after hypr.looknfeel, so a flag file placed there always wins and
+# survives every reload. On: writes the complete Dusky-style config (not just
+# a diff), so it behaves the same on a machine that has never touched
+# looknfeel.lua. Off: writes Omarchy's own defaults back explicitly rather
+# than deleting the file, so a stale flag can't half-apply.
+
+set -euo pipefail
+
+readonly TOGGLE_DIR="$HOME/.local/state/omarchy/toggles/hypr"
+readonly TOGGLE_FILE="$TOGGLE_DIR/chomsky-window-behavior.lua"
+readonly STATE_DIR="$HOME/.local/state/chomsky"
+readonly STATE_FILE="$STATE_DIR/window-behavior"
+readonly DEFAULT_DIM_STRENGTH="0.15"
+
+err() { echo "chomsky-window: $*" >&2; }
+
+# hyprctl getoption reports booleans as either "bool: true"/"bool: false" or,
+# for some options, "int: 1"/"int: 0" -- handle both.
+hypr_option_true() {
+  hyprctl getoption "$1" 2>/dev/null | grep -qE '^(bool: true|int: 1)$'
+}
+
+current_state() {
+  if [[ -f "$STATE_FILE" ]]; then
+    cat "$STATE_FILE"
+  elif hypr_option_true general:resize_on_border; then
+    echo "on"
+  else
+    echo "off"
+  fi
+}
+
+write_flag() {
+  local enabled="$1" dim_strength="$2"
+  mkdir -p "$TOGGLE_DIR" "$STATE_DIR"
+  local tmp
+  tmp="$(mktemp "$TOGGLE_DIR/.chomsky-window-behavior.XXXXXX.tmp")"
+  trap 'rm -f "$tmp"' EXIT
+
+  if [[ "$enabled" == "on" ]]; then
+    cat > "$tmp" <<EOF
+-- Written by chomsky-window. Full Dusky-style mouse/window behavior, not
+-- just a diff, so it works the same on a machine with no other overrides.
+hl.config({
+  general = {
+    resize_on_border = true,
+    extend_border_grab_area = 15,
+    hover_icon_on_border = true,
+  },
+  decoration = {
+    dim_inactive = true,
+    dim_strength = $dim_strength,
+    dim_special = 0.7,
+    dim_around = 0.4,
+    dim_modal = true,
+  },
+  misc = {
+    animate_mouse_windowdragging = false,
+    animate_manual_resizes = false,
+  },
+})
+EOF
+  else
+    cat > "$tmp" <<'EOF'
+-- Written by chomsky-window. Omarchy's own defaults, explicit rather than
+-- relying on the file's absence, so a stale flag can never half-apply.
+hl.config({
+  general = {
+    resize_on_border = false,
+    extend_border_grab_area = 0,
+    hover_icon_on_border = false,
+  },
+  decoration = {
+    dim_inactive = false,
+  },
+  misc = {
+    animate_mouse_windowdragging = true,
+    animate_manual_resizes = true,
+  },
+})
+EOF
+  fi
+
+  chmod 644 "$tmp"
+  mv -f -- "$tmp" "$TOGGLE_FILE"
+  trap - EXIT
+  printf '%s\n' "$enabled" > "$STATE_FILE"
+}
+
+apply() {
+  local enabled="$1" dim_strength="${2:-$DEFAULT_DIM_STRENGTH}"
+  write_flag "$enabled" "$dim_strength"
+  hyprctl reload >/dev/null
+  echo "Window behavior: $enabled"
+}
+
+toggle() {
+  local dim_strength="${1:-$DEFAULT_DIM_STRENGTH}"
+  local cur
+  cur="$(current_state)"
+  if [[ "$cur" == "on" ]]; then
+    apply off
+  else
+    apply on "$dim_strength"
+  fi
+}
+
+usage() {
+  cat >&2 <<EOF
+Usage: chomsky-window <command> [args]
+
+Commands:
+  on [dim_strength]   Enable border resize + inactive dimming (default dim 0.15)
+  off                 Restore Omarchy defaults
+  toggle              Flip on/off
+  current             Print "on" or "off"
+EOF
+  exit 1
+}
+
+main() {
+  local cmd="${1:-}"
+  case "$cmd" in
+    on) apply on "${2:-$DEFAULT_DIM_STRENGTH}" ;;
+    off) apply off ;;
+    toggle) toggle "${2:-$DEFAULT_DIM_STRENGTH}" ;;
+    current) current_state ;;
+    *) usage ;;
+  esac
+}
+
+main "$@"
