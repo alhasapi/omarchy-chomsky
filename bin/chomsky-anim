@@ -34,6 +34,10 @@ list_presets() {
 }
 
 current_preset() {
+  # A preset is in force only while its toggle file is: that is the file
+  # Hyprland sources on every reload. Reporting the recorded name alone would
+  # claim a preset was active even after Omarchy cleared that directory.
+  [[ -f "$TOGGLE_FILE" ]] || { echo "(none)"; return; }
   if [[ -f "$STATE_FILE" ]]; then
     cat "$STATE_FILE"
   else

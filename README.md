@@ -82,6 +82,10 @@ Keyboard: `j`/`k` or the arrows move the cursor, `Enter` activates, `Esc`
 closes, and a click on the scrim closes. The animation and shader pickers are
 type-to-search dropdowns.
 
+There is no "reload Hyprland" row: everything here applies itself, and the
+manual reload is one key away in the Dusky set (`SUPER + SHIFT + R`) and one
+command away anywhere else (`hyprctl reload`).
+
 ## The bar chip
 
 The chip is optional, and nothing else depends on it:
@@ -194,13 +198,21 @@ cleans the stale block out of the menu and says so.
 
 ## How it stays out of your config
 
-Animation presets and the window-behavior toggle are applied by writing to
-Omarchy's own toggle-flag directory
+Animation presets, the window-behavior toggle, the keybinding switch and the
+screen shader are all applied by writing to Omarchy's own toggle-flag directory
 (`~/.local/state/omarchy/toggles/hypr/chomsky-*.lua`), which
 `default/hypr/toggles.lua` sources on every `hyprctl reload` -- after your own
 `looknfeel.lua`, so it always wins, with no `require()` line needed anywhere.
-The keybinding switch uses the same directory. Shaders, animation, the
-menu-rows choice and the wallpaper/keybinding mode are recorded in
+
+The shader belongs in that directory for a reason worth spelling out:
+`decoration:screen_shader` set at runtime (with `hyprctl keyword`, or an
+`hl.config` through `hyprctl eval`) is forgotten by the next reload -- and
+plenty of things reload the config. Applied from a toggle file it survives
+them, and `chomsky-shader current` reports what Hyprland actually has on rather
+than what was last asked for, so the panel cannot claim a shader is running
+while nothing is painted.
+
+The menu-rows choice and the wallpaper/keybinding mode are recorded in
 `~/.local/state/chomsky/`.
 
 Two files outside the plugin directory, both reversible:

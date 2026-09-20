@@ -91,7 +91,7 @@ Item {
   // worth the extra index bookkeeping for a single control.
   property int cursorIndex: 0
   property bool cursorActive: false
-  readonly property int cursorCount: 15
+  readonly property int cursorCount: 14
 
   function open(payloadJson) {
     root.opened = true
@@ -155,7 +155,6 @@ Item {
       case 11: root.bgPrev(); break
       case 12: root.bgNext(); break
       case 13: root.pickWallpaper(); break
-      case 14: root.reloadHyprland(); break
     }
   }
 
@@ -217,10 +216,6 @@ Item {
     root.close()
     if (service && service.bgMenu) Qt.callLater(function() { service.bgMenu() })
   }
-  function reloadHyprland() {
-    if (service && service.reloadHyprland) service.reloadHyprland()
-  }
-
   Process {
     id: animProc
     property string buffer: ""
@@ -604,20 +599,6 @@ Item {
                 hasCursor: root.cursorActive && root.cursorIndex === 13
                 onClicked: root.pickWallpaper()
               }
-            }
-
-            PanelSeparator { foreground: root.foreground }
-
-            // ---- Footer ----
-            Button {
-              width: parent.width
-              text: "Reload Hyprland"
-              leftAlign: false
-              foreground: root.foreground
-              fontFamily: Style.font.family
-              bordered: true
-              hasCursor: root.cursorActive && root.cursorIndex === 14
-              onClicked: root.reloadHyprland()
             }
           }
         }

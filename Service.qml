@@ -100,7 +100,6 @@ Item {
   function bgNext() { root.runAction(["bg-next"]) }
   function bgPrev() { root.runAction(["bg-prev"]) }
   function bgMenu() { root.runAction(["wallpaper", "menu"]) }
-  function reloadHyprland() { root.runAction(["reload"]) }
 
   function setKeybindings(mode) { root.runAction(["keys", mode]) }
   function toggleKeybindings() { root.setKeybindings(root.keybindings === "dusky" ? "omarchy" : "dusky") }
@@ -125,11 +124,17 @@ Item {
 
   // Pick up changes made outside the plugin entirely -- a keybind, a bare CLI
   // call in a terminal -- by watching the state files those write.
+  // A shader is applied by writing this toggle file (Hyprland sources it on
+  // every reload), so this -- not a state file -- is what changes when a shader
+  // is switched from anywhere. It is removed when the shader is turned off,
+  // hence the load-failed path as well.
   FileView {
-    path: root.stateDir + "/shader"
+    path: Quickshell.env("HOME") + "/.local/state/omarchy/toggles/hypr/chomsky-shader.lua"
     watchChanges: true
     printErrors: false
     onFileChanged: root.refresh()
+    onLoaded: root.refresh()
+    onLoadFailed: root.refresh()
   }
   FileView {
     path: root.stateDir + "/animation"
