@@ -1,11 +1,15 @@
 #!/bin/bash
-# chomsky-menu-entry: companion script for the Style > Animation / Style >
-# Shader rows chomsky-menu-install adds to the user's Omarchy menu extension.
-# Copied into ~/.config/omarchy/extensions/ at install time so the rows keep
-# working -- and can clean themselves up -- even after the plugin is fully
-# removed (which deletes chomsky-menu-install along with the rest of the
-# plugin directory, so the removal logic below is self-contained rather than
-# delegated back to it).
+# chomsky-menu-entry: the row-action dispatcher for the Chomsky rows that
+# chomsky-menu-install adds to the user's Omarchy menu extension. It is copied
+# into ~/.config/omarchy/extensions/ at install time, so the rows keep working
+# -- and can clean themselves up -- even after the plugin is fully removed.
+# The plugin directory deletes chomsky-menu-install along with everything else,
+# which is why the removal logic below is self-contained rather than delegated
+# back to it.
+#
+# Every mode below is named by a row's `action:` in the managed block, except
+# the stale-row cleanup path, which runs when a leftover row is clicked after
+# the plugin itself is gone.
 
 set -euo pipefail
 
@@ -15,17 +19,36 @@ EXT="${OMARCHY_MENU_EXTENSION:-$HOME/.config/omarchy/extensions/omarchy-menu.jso
 START='// >>> chomsky-menu >>>'
 END='// <<< chomsky-menu <<<'
 
-remove_stale_rows() {
+notify() {
+  command -v omarchy-notification-send >/dev/null 2>&1 || return 0
+  omarchy-notification-send -u "$1" "$2" "$3" -t "$4" >/dev/null 2>&1 || true
+}
+
+# Take the managed block out, and reconcile the comma on whatever entry now
+# precedes the file's closing brace. Silent and idempotent: a no-op when the
+# block is already gone, so it is safe to run on every shell start.
+#
+# `--remove` is deliberately not routed through here by the plugin's own
+# startup hook -- the hook calls chomsky-menu-install, which decides from the
+# widget setting. This script only ever removes rows that can no longer run.
+remove_block() {
   [[ -f "$EXT" ]] || return 0
   grep -qF "$START" "$EXT" || return 0
 
   local start_esc end_esc
   start_esc=$(printf '%s' "$START" | sed 's/[.[\*^$/]/\\&/g')
   end_esc=$(printf '%s' "$END" | sed 's/[.[\*^$/]/\\&/g')
-  sed -i "\@^[[:space:]]*${start_esc}[[:space:]]*\$@,\@^[[:space:]]*${end_esc}[[:space:]]*\$@d" "$EXT"
 
-  # Whatever entry now sits immediately before the file's closing brace must
-  # not carry a trailing comma.
+  # One pass per block, so a file left holding duplicates by an interrupted
+  # install still cleans up completely. No lock here: this path only runs
+  # once the plugin directory is gone, so no installer can be running.
+  local passes=0
+  while grep -qF "$START" "$EXT"; do
+    passes=$((passes + 1))
+    (( passes <= 10 )) || return 0
+    sed -i "\@^[[:space:]]*${start_esc}[[:space:]]*\$@,\@^[[:space:]]*${end_esc}[[:space:]]*\$@d" "$EXT"
+  done
+
   local close_line prev
   close_line=$(grep -n '^}' "$EXT" | tail -n1 | cut -d: -f1) || return 0
   [[ -n "$close_line" ]] || return 0
@@ -42,31 +65,56 @@ remove_stale_rows() {
   if [[ $last_trimmed != "{" && ${last_trimmed: -1} == "," ]]; then
     sed -i "${prev}s/,\$//" "$EXT"
   fi
-
-  if command -v omarchy-notification-send >/dev/null 2>&1; then
-    omarchy-notification-send -u normal "Chomsky" "Plugin is disabled — menu rows removed" -t 4000 >/dev/null 2>&1 || true
-  fi
 }
 
 MODE="${1:-}"
 
 case "$MODE" in
-  animation|shader|shader-off)
-    if [[ -x "$PLUGIN_BIN/chomsky-anim" && -x "$PLUGIN_BIN/chomsky-shader" ]]; then
+  animation|shader|shader-off|shader-next|shader-prev|window-toggle|window-dim|rotate-cw|rotate-ccw|dpms|bg-next|bg-prev|wallpaper-pick|panel)
+    if [[ -x "$PLUGIN_BIN/chomsky" ]]; then
       case "$MODE" in
         animation) exec "$PLUGIN_BIN/chomsky-anim" menu ;;
         shader) exec "$PLUGIN_BIN/chomsky-shader" menu ;;
         shader-off) exec "$PLUGIN_BIN/chomsky-shader" off ;;
+        shader-next) exec "$PLUGIN_BIN/chomsky-shader" next ;;
+        shader-prev) exec "$PLUGIN_BIN/chomsky-shader" prev ;;
+        window-toggle)
+          "$PLUGIN_BIN/chomsky-window" toggle
+          notify low "Window Behavior" \
+            "Border resize & dimming: $("$PLUGIN_BIN/chomsky-window" current 2>/dev/null || echo '?')" 2500
+          exit 0
+          ;;
+        window-dim)
+          dim_choices=("0.10 (Subtle)" "0.15 (Default)" "0.20 (Moderate)" "0.25 (Medium)" "0.35 (Strong)" "0.50 (High)")
+          choice="$(omarchy-menu-select "Dim Strength" "${dim_choices[@]}" -- --width 25)" || exit 0
+          val="${choice%% *}"
+          if [[ -n "$val" ]]; then
+            "$PLUGIN_BIN/chomsky-window" on "$val"
+            notify low "Window Behavior" "Dim strength set to $val" 2500
+          fi
+          exit 0
+          ;;
+        rotate-cw) exec "$PLUGIN_BIN/chomsky-monitor-rotate" cw ;;
+        rotate-ccw) exec "$PLUGIN_BIN/chomsky-monitor-rotate" ccw ;;
+        dpms) exec "$PLUGIN_BIN/chomsky" dpms off ;;
+        bg-next) exec "$PLUGIN_BIN/chomsky-wallpaper" next ;;
+        bg-prev) exec "$PLUGIN_BIN/chomsky-wallpaper" prev ;;
+        wallpaper-pick) exec "$PLUGIN_BIN/chomsky-wallpaper" menu ;;
+        panel) exec omarchy-shell alhasapi.chomsky toggle ;;
       esac
     fi
-    # Plugin files are gone (removed, not just disabled): clean up.
-    remove_stale_rows
+
+    # The plugin directory is gone (removed, not just disabled), so this row
+    # can no longer do anything. Take the whole block out and say so -- this is
+    # the only path that still runs once the plugin has been uninstalled.
+    remove_block
+    notify normal "Chomsky" "Plugin is gone — its menu rows were removed" 4000
     ;;
   --remove)
-    remove_stale_rows
+    remove_block
     ;;
   *)
-    echo "Usage: chomsky-menu-entry <animation|shader|shader-off|--remove>" >&2
+    echo "Usage: chomsky-menu-entry <animation|shader|shader-off|shader-next|shader-prev|window-toggle|window-dim|rotate-cw|rotate-ccw|dpms|bg-next|bg-prev|wallpaper-pick|panel|--remove>" >&2
     exit 1
     ;;
 esac

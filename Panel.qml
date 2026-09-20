@@ -77,8 +77,8 @@ Panel {
       case 7: root.rotate("ccw"); break
       case 8: root.rotate("cw"); break
       case 9: root.screenOff(); break
-      case 10: root.bgNext(); break
-      case 11: root.themeFromCurrentBg(); break
+      case 10: root.bgPrev(); break
+      case 11: root.bgNext(); break
       case 12: root.reloadHyprland(); break
     }
   }
@@ -123,11 +123,11 @@ Panel {
   function screenOff() {
     if (hostWidget && hostWidget.screenOff) hostWidget.screenOff()
   }
+  function bgPrev() {
+    if (hostWidget && hostWidget.bgPrev) hostWidget.bgPrev()
+  }
   function bgNext() {
     if (hostWidget && hostWidget.bgNext) hostWidget.bgNext()
-  }
-  function themeFromCurrentBg() {
-    if (hostWidget && hostWidget.themeFromCurrentBg) hostWidget.themeFromCurrentBg()
   }
   function reloadHyprland() {
     if (hostWidget && hostWidget.reloadHyprland) hostWidget.reloadHyprland()
@@ -407,30 +407,30 @@ Panel {
 
           PanelSectionHeader { text: "WALLPAPER"; foreground: root.foreground; fontFamily: root.fontFamily }
 
-          // Stacked full-width, not a Row -- "Theme from wallpaper" is long
-          // enough that two side-by-side buttons overflowed the panel width.
-          Column {
+          Row {
             width: parent.width
             spacing: Style.space(8)
 
             Button {
-              width: parent.width
-              text: "Next background"
+              width: (parent.width - parent.spacing) / 2
+              text: "󰒮 Previous"
+              tooltipText: "Previous background (including ~/Pictures)"
               foreground: root.foreground
               fontFamily: root.fontFamily
               bordered: true
               hasCursor: root.cursorActive && root.cursorIndex === 10
-              onClicked: root.bgNext()
+              onClicked: root.bgPrev()
             }
 
             Button {
-              width: parent.width
-              text: "Theme from wallpaper"
+              width: (parent.width - parent.spacing) / 2
+              text: "Next 󰒭"
+              tooltipText: "Next background (including ~/Pictures)"
               foreground: root.foreground
               fontFamily: root.fontFamily
               bordered: true
               hasCursor: root.cursorActive && root.cursorIndex === 11
-              onClicked: root.themeFromCurrentBg()
+              onClicked: root.bgNext()
             }
           }
         }

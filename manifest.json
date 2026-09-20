@@ -6,19 +6,27 @@
   "author": "alhasapi",
   "license": "MIT",
   "homepage": "https://github.com/alhasapi/omarchy-chomsky",
-  "description": "Unified manager for a Dusky-derived look & feel: animation presets, screen shaders, border-resize/dim window behavior, monitor rotation, and wallpaper-driven themes -- all bundled, no other config edits required.",
+  "description": "Unified manager for a Dusky-derived look & feel: animation presets, screen shaders, border-resize/dim window behavior, monitor rotation, and wallpaper cycling -- all bundled, no other config edits required. Adds its own rows to the Omarchy menu.",
   "kinds": ["bar-widget"],
   "entryPoints": { "barWidget": "BarWidget.qml" },
   "barWidget": {
     "displayName": "Chomsky",
-    "description": "Animations, shaders, window behavior, monitor rotation, and wallpaper themes in one panel",
+    "description": "Animations, shaders, window behavior, monitor rotation, and wallpapers in one panel",
     "category": "System",
     "allowMultiple": false,
     "defaultSection": "right",
     "defaults": {
+      "menuRows": true,
       "dimStrength": 0.15
     },
     "schema": [
+      {
+        "key": "menuRows",
+        "type": "boolean",
+        "label": "Omarchy menu rows",
+        "description": "Add Style > Animation / Shader / Window Behavior / Display / Wallpaper rows for this plugin to the Omarchy menu. Removed from the menu when this is off.",
+        "defaultValue": true
+      },
       {
         "key": "dimStrength",
         "type": "number",

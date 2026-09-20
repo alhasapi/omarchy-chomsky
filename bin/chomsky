@@ -1,7 +1,7 @@
 #!/bin/bash
 # chomsky: the whole integration surface between the Chomsky bar plugin's
 # QML and the standalone CLIs it drives (chomsky-anim, chomsky-shader,
-# chomsky-window, chomsky-monitor-rotate, chomsky-theme-from-wallpaper). The
+# chomsky-window, chomsky-monitor-rotate, chomsky-wallpaper). The
 # QML calls only this script; if any of those CLIs changes, only this file
 # follows.
 
@@ -70,14 +70,10 @@ case "${1:-}" in
   shader) shift; exec "$BIN_DIR/chomsky-shader" "$@" ;;
   window) shift; exec "$BIN_DIR/chomsky-window" "$@" ;;
   rotate) shift; exec "$BIN_DIR/chomsky-monitor-rotate" "$@" ;;
-  theme-from-wallpaper) shift; exec "$BIN_DIR/chomsky-theme-from-wallpaper" "$@" ;;
-  bg-next) exec omarchy theme bg next ;;
-  theme-from-bg)
-    bg="$(readlink -f "$HOME/.local/state/omarchy/current/background" 2>/dev/null)"
-    [[ -n "$bg" ]] && exec "$BIN_DIR/chomsky-theme-from-wallpaper" "$bg"
-    err "no current background"
-    exit 1
-    ;;
+  bg-next) exec "$BIN_DIR/chomsky-wallpaper" next ;;
+  bg-prev) exec "$BIN_DIR/chomsky-wallpaper" prev ;;
+  wallpaper) shift; exec "$BIN_DIR/chomsky-wallpaper" "$@" ;;
+  menu-install) shift; exec "$BIN_DIR/chomsky-menu-install" "$@" ;;
   reload) exec hyprctl reload ;;
   dpms)
     shift
@@ -88,7 +84,7 @@ case "${1:-}" in
     esac
     ;;
   *)
-    echo "Usage: chomsky <status|animations|shaders|anim|shader|window|rotate|theme-from-wallpaper|bg-next|theme-from-bg|reload|dpms> ..." >&2
+    echo "Usage: chomsky <status|animations|shaders|anim|shader|window|rotate|bg-next|bg-prev|wallpaper|menu-install|reload|dpms> ..." >&2
     exit 1
     ;;
 esac

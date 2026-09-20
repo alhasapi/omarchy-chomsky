@@ -1,6 +1,7 @@
 #!/bin/bash
 # chomsky-menu-install: install or remove the Style > Animation / Style >
-# Shader rows in the Omarchy menu (~/.config/omarchy/extensions/omarchy-menu.jsonc).
+# Shader and friends rows in the Omarchy menu
+# (~/.config/omarchy/extensions/omarchy-menu.jsonc).
 #
 # The rows are wrapped in a single marker-delimited block. Removal uses sed's
 # own line-range address (`/start/,/end/d`) rather than manual line-number
@@ -12,29 +13,46 @@
 # into the same extensions directory, so the rows keep working -- and can
 # clean themselves up -- even after the plugin is disabled or removed.
 #
-# Install is idempotent: it always removes any existing block first, then
-# inserts a fresh one, so re-running (e.g. after `omarchy plugin update`)
-# just replaces it in place.
+# Run with no arguments it *syncs*: it reads the widget's "Omarchy menu rows"
+# setting out of ~/.config/omarchy/shell.json and makes the file match, which
+# is what BarWidget.qml calls on startup and whenever settings change. That
+# decision lives here rather than in the QML because the settings object is
+# not reliably populated when the widget's own startup hook runs, and because
+# the shell can fire the hook more than once -- several concurrent runs are
+# normal, so the whole read-modify-write happens under a lock and is
+# idempotent. Calling it concurrently therefore converges instead of leaving
+# two blocks behind.
 #
-# `--remove` takes the block back out without reinstalling.
+# --enable and --remove force one outcome regardless of the setting, for use
+# from a terminal. Both are undone by the next sync (i.e. the next shell
+# start) unless the setting agrees with them.
 
 set -euo pipefail
 
+PLUGIN_ID='alhasapi.chomsky'
 EXT="${OMARCHY_MENU_EXTENSION:-$HOME/.config/omarchy/extensions/omarchy-menu.jsonc}"
 EXT_DIR="$(dirname "$EXT")"
 ENTRY="$EXT_DIR/chomsky-menu-entry"
 START='// >>> chomsky-menu >>>'
 END='// <<< chomsky-menu <<<'
+LOCK="$HOME/.local/state/chomsky/menu.lock"
 
-MODE=install
+MODE=auto
 case "${1:-}" in
   -h|--help)
-    echo "Usage: chomsky-menu-install [--remove]"
+    cat <<'EOF'
+Usage: chomsky-menu-install [--enable | --remove]
+
+With no arguments, adds the Chomsky rows to the Omarchy menu if the plugin's
+"Omarchy menu rows" widget setting allows it, and removes them if it does not.
+
+  --enable   add (or refresh) the rows regardless of that setting
+  --remove   remove the rows and the chomsky-menu-entry helper
+EOF
     exit 0
     ;;
-  --remove|--uninstall)
-    MODE=remove
-    ;;
+  --remove|--uninstall) MODE=remove ;;
+  --enable|--install) MODE=enable ;;
   "") ;;
   *)
     echo "chomsky-menu-install: unknown option: $1" >&2
@@ -43,8 +61,39 @@ case "${1:-}" in
 esac
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-mkdir -p "$EXT_DIR"
-install -m 755 "$SCRIPT_DIR/chomsky-menu-entry" "$ENTRY"
+
+# Read the one setting that decides all of this straight out of the shell
+# config: `omarchy bar set <id> menuRows false` writes it there, and entry
+# keys other than `id` are the widget's settings object. Missing config, a
+# missing widget, or a missing key all mean the default, which is on.
+menu_rows_setting() {
+  local conf="$HOME/.config/omarchy/shell.json"
+  [[ -f $conf ]] || { echo on; return; }
+
+  local value
+  value=$(jq -r --arg id "$PLUGIN_ID" '
+    ([.bar.layout[]? | .[]? | select(type == "object" and .id == $id)][0]
+     | if . == null then true
+       elif has("menuRows") then .menuRows
+       else true
+       end)
+    | if . == false or . == "false" or . == 0 or . == "0" then "off" else "on" end
+  ' "$conf" 2>/dev/null) || { echo on; return; }
+
+  [[ $value == off ]] && echo off || echo on
+}
+
+# Several runs at once are expected (the shell can fire its startup hook more
+# than once), so serialise the whole read-modify-write. Without this, two runs
+# can each insert a block and leave duplicate rows behind.
+lock_ext() {
+  mkdir -p "$(dirname "$LOCK")"
+  exec {LOCK_FD}>"$LOCK"
+  flock -w 15 "$LOCK_FD" || {
+    echo "chomsky-menu-install: another run is holding $LOCK" >&2
+    exit 1
+  }
+}
 
 # Emit the managed block to stdout, one row per line, no trailing comma on
 # the last row (the caller/fixup pass reconciles commas around it).
@@ -53,7 +102,21 @@ emit_block() {
   printf '  "style.animation": {"icon":"󰸉","label":"Animation","aliases":["animation","animations"],"description":"Switch or cycle Hyprland animation presets","action":"%s animation","checked":"[ \\"$(%s current 2>/dev/null)\\" != \\"disable\\" ]"},\n' "$ENTRY" "$SCRIPT_DIR/chomsky-anim"
   printf '  "style.shader": {"icon":"󰄄","label":"Shader","checked":"[ \\"$(%s current 2>/dev/null)\\" != \\"off\\" ]"},\n' "$SCRIPT_DIR/chomsky-shader"
   printf '  "style.shader.pick": {"icon":"󰄄","label":"Pick shader...","aliases":["shader","shaders"],"action":"%s shader"},\n' "$ENTRY"
-  printf '  "style.shader.off": {"icon":"","label":"Turn off shader","when":"[ \\"$(%s current 2>/dev/null)\\" != \\"off\\" ]","action":"%s shader-off"}\n' "$SCRIPT_DIR/chomsky-shader" "$ENTRY"
+  printf '  "style.shader.off": {"icon":"","label":"Turn off shader","when":"[ \\"$(%s current 2>/dev/null)\\" != \\"off\\" ]","action":"%s shader-off"},\n' "$SCRIPT_DIR/chomsky-shader" "$ENTRY"
+  printf '  "style.shader.next": {"icon":"󰒭","label":"Next shader","action":"%s shader-next"},\n' "$ENTRY"
+  printf '  "style.shader.prev": {"icon":"󰒮","label":"Previous shader","action":"%s shader-prev"},\n' "$ENTRY"
+  printf '  "style.window": {"icon":"","label":"Window Behavior","checked":"[ \\"$(%s current 2>/dev/null)\\" == \\"on\\" ]"},\n' "$SCRIPT_DIR/chomsky-window"
+  printf '  "style.window.toggle": {"icon":"󰘦","label":"Toggle border resize & dim","action":"%s window-toggle"},\n' "$ENTRY"
+  printf '  "style.window.dim": {"icon":"󰃟","label":"Set dim strength...","action":"%s window-dim"},\n' "$ENTRY"
+  printf '  "style.display": {"icon":"󰍹","label":"Display Controls"},\n'
+  printf '  "style.display.rotate-cw": {"icon":"󰑮","label":"Rotate 90° Clockwise","action":"%s rotate-cw"},\n' "$ENTRY"
+  printf '  "style.display.rotate-ccw": {"icon":"󰑯","label":"Rotate 90° Counter-Clockwise","action":"%s rotate-ccw"},\n' "$ENTRY"
+  printf '  "style.display.dpms": {"icon":"󰌶","label":"Turn screen off (DPMS)","action":"%s dpms"},\n' "$ENTRY"
+  printf '  "style.wallpaper": {"icon":"","label":"Wallpaper"},\n'
+  printf '  "style.wallpaper.next": {"icon":"󰒭","label":"Next background","description":"Cycle the active theme and ~/Pictures","action":"%s bg-next"},\n' "$ENTRY"
+  printf '  "style.wallpaper.prev": {"icon":"󰒮","label":"Previous background","description":"Cycle the active theme and ~/Pictures","action":"%s bg-prev"},\n' "$ENTRY"
+  printf '  "style.wallpaper.pick": {"icon":"","label":"Pick wallpaper...","action":"%s wallpaper-pick"},\n' "$ENTRY"
+  printf '  "style.chomsky": {"icon":"󰸉","label":"Chomsky Control Panel","description":"Open the Chomsky panel","aliases":["chomsky"],"action":"%s panel"}\n' "$ENTRY"
   printf '  %s\n' "$END"
 }
 
@@ -82,17 +145,44 @@ fix_trailing_comma() {
 remove_block() {
   [[ -f "$EXT" ]] || return 0
   grep -qF "$START" "$EXT" || return 0
+
   local start_esc end_esc
   start_esc=$(printf '%s' "$START" | sed 's/[.[\*^$/]/\\&/g')
   end_esc=$(printf '%s' "$END" | sed 's/[.[\*^$/]/\\&/g')
-  sed -i "\@^[[:space:]]*${start_esc}[[:space:]]*\$@,\@^[[:space:]]*${end_esc}[[:space:]]*\$@d" "$EXT"
+
+  # One pass per block: an earlier bug could leave duplicates behind, and a
+  # run that is interrupted between insert and cleanup can too. Nothing
+  # outside the markers is ever touched, so repeating is safe.
+  local passes=0
+  while grep -qF "$START" "$EXT"; do
+    passes=$((passes + 1))
+    if (( passes > 10 )); then
+      echo "chomsky-menu-install: could not remove every managed block from $EXT" >&2
+      return 1
+    fi
+    sed -i "\@^[[:space:]]*${start_esc}[[:space:]]*\$@,\@^[[:space:]]*${end_esc}[[:space:]]*\$@d" "$EXT"
+  done
+
   fix_trailing_comma
 }
 
-if [[ "$MODE" == remove ]]; then
+lock_ext
+
+if [[ $MODE == auto ]]; then
+  [[ $(menu_rows_setting) == on ]] && MODE=enable || MODE=remove
+fi
+
+if [[ $MODE == remove ]]; then
   remove_block
+  # The copied entry script has nothing left to dispatch once the rows are
+  # gone, so take it with them rather than leaving an orphan in the user's
+  # extensions directory.
+  rm -f "$ENTRY"
   exit 0
 fi
+
+mkdir -p "$EXT_DIR"
+install -m 755 "$SCRIPT_DIR/chomsky-menu-entry" "$ENTRY"
 
 # Idempotent: always start from a clean slate.
 remove_block

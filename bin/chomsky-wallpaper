@@ -1,0 +1,186 @@
+#!/bin/bash
+# chomsky-wallpaper: cycle, pick, or set wallpapers across the active Omarchy
+# theme and ~/Pictures (including one level of subdirectories, excluding
+# screenshots).
+#
+# Everything is applied through Omarchy's own `omarchy-theme-bg-set`, which
+# symlinks ~/.local/state/omarchy/current/background and tells the running
+# shell to repaint. Picking reuses Omarchy's own thumbnail-grid image picker
+# (`omarchy-menu-images`), so a wallpaper is chosen by preview and returned as
+# an exact path rather than as a display string.
+
+set -euo pipefail
+
+readonly STATE_CURRENT="$HOME/.local/state/omarchy/current"
+readonly USER_CONFIG="$HOME/.config/omarchy"
+readonly PICTURES_DIR="$HOME/Pictures"
+
+# The same extensions Omarchy's own `omarchy-theme-bg-next` walks, so what this
+# script calls a wallpaper matches what the rest of Omarchy does.
+readonly IMAGE_MATCH=( \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' \) )
+
+err() { echo "chomsky-wallpaper: $*" >&2; }
+
+current_wallpaper() {
+  local bg_link="$STATE_CURRENT/background"
+  if [[ -L "$bg_link" ]]; then
+    readlink -f "$bg_link" 2>/dev/null || readlink "$bg_link" 2>/dev/null || echo ""
+  else
+    echo ""
+  fi
+}
+
+# Directories that may hold wallpapers for the active theme, plus ~/Pictures.
+# Roots are printed whether or not they exist; callers filter.
+search_roots() {
+  local theme_name=""
+  [[ -f "$STATE_CURRENT/theme.name" ]] && theme_name="$(< "$STATE_CURRENT/theme.name")"
+
+  [[ -n "$theme_name" ]] && printf '%s\n' "$USER_CONFIG/backgrounds/$theme_name"
+  printf '%s\n' "$STATE_CURRENT/theme/backgrounds"
+  printf '%s\n' "$PICTURES_DIR"
+}
+
+# Every directory the wallpaper walk actually descends into: the roots above,
+# plus their immediate subdirectories when those hold at least one image. One
+# level deep only -- and since the subdirectories are listed explicitly, the
+# cycle and the picker see exactly the same set of files. Deduplicated, and
+# only directories that exist and hold an image, so the picker never opens on
+# an empty section.
+wallpaper_dirs() {
+  local root sub
+  while IFS= read -r root; do
+    [[ -d "$root" ]] || continue
+    printf '%s\n' "$root"
+
+    while IFS= read -r sub; do
+      [[ -n "$sub" ]] || continue
+      if find -L "$sub" -maxdepth 1 -type f "${IMAGE_MATCH[@]}" \
+           ! -iname '*screenshot*' -print -quit 2>/dev/null | grep -q .; then
+        printf '%s\n' "$sub"
+      fi
+    done < <(find -L "$root" -mindepth 1 -maxdepth 1 -type d 2>/dev/null)
+  done < <(search_roots) | sort -u
+}
+
+list_wallpapers() {
+  local -a dirs=()
+  mapfile -t dirs < <(wallpaper_dirs)
+  (( ${#dirs[@]} > 0 )) || return 0
+
+  find -L "${dirs[@]}" -maxdepth 1 -type f "${IMAGE_MATCH[@]}" \
+    ! -iname '*screenshot*' -print0 2>/dev/null | sort -z | tr '\0' '\n'
+}
+
+apply_wallpaper() {
+  local target="$1"
+  if [[ ! -f "$target" ]]; then
+    err "file does not exist: $target"
+    exit 1
+  fi
+
+  omarchy-theme-bg-set "$target"
+
+  local name
+  name="$(basename "$target")"
+  if command -v omarchy-notification-send >/dev/null 2>&1; then
+    omarchy-notification-send -u low "Wallpaper" "$name" -t 2000 >/dev/null 2>&1 || true
+  fi
+  echo "Wallpaper set to: $target"
+}
+
+cycle_wallpaper() {
+  local direction="${1:-next}"
+  mapfile -t wallpapers < <(list_wallpapers)
+  local total="${#wallpapers[@]}"
+
+  if (( total == 0 )); then
+    err "no wallpapers found in the active theme or $PICTURES_DIR"
+    exit 1
+  fi
+
+  local cur idx=-1
+  cur="$(current_wallpaper)"
+
+  if [[ -n "$cur" ]]; then
+    for i in "${!wallpapers[@]}"; do
+      if [[ "${wallpapers[$i]}" == "$cur" ]]; then
+        idx=$i
+        break
+      fi
+    done
+  fi
+
+  local new_idx
+  if [[ "$direction" == "prev" ]]; then
+    if (( idx <= 0 )); then
+      new_idx=$(( total - 1 ))
+    else
+      new_idx=$(( idx - 1 ))
+    fi
+  else
+    if (( idx == -1 )); then
+      new_idx=0
+    else
+      new_idx=$(( (idx + 1) % total ))
+    fi
+  fi
+
+  apply_wallpaper "${wallpapers[$new_idx]}"
+}
+
+menu_select() {
+  local -a dirs=()
+  mapfile -t dirs < <(wallpaper_dirs)
+
+  if (( ${#dirs[@]} == 0 )); then
+    err "no wallpaper directory found (looked in the active theme and $PICTURES_DIR)"
+    exit 1
+  fi
+
+  if ! command -v omarchy-menu-images >/dev/null 2>&1; then
+    err "omarchy-menu-images is not on PATH (it ships with Omarchy 4)"
+    exit 1
+  fi
+
+  # --selected highlights the active wallpaper; --filterable adds a search
+  # field, which matters once ~/Pictures is in the list.
+  local choice
+  choice="$(omarchy-menu-images --selected "$(current_wallpaper)" --filterable "${dirs[@]}")" || exit 0
+  [[ -n "$choice" ]] || exit 0
+
+  apply_wallpaper "$choice"
+}
+
+usage() {
+  cat >&2 <<EOF
+Usage: chomsky-wallpaper <command> [args]
+
+Commands:
+  list            List every discovered wallpaper (active theme + ~/Pictures)
+  current         Print the active wallpaper path
+  next            Cycle to the next wallpaper
+  prev            Cycle to the previous wallpaper
+  set <path>      Apply an explicit wallpaper image
+  menu            Pick a wallpaper from the thumbnail grid
+EOF
+  exit 1
+}
+
+main() {
+  local cmd="${1:-}"
+  case "$cmd" in
+    list) list_wallpapers ;;
+    current) current_wallpaper ;;
+    next) cycle_wallpaper next ;;
+    prev) cycle_wallpaper prev ;;
+    set)
+      [[ -n "${2:-}" ]] || { err "set requires an image path"; exit 1; }
+      apply_wallpaper "$2"
+      ;;
+    menu) menu_select ;;
+    *) usage ;;
+  esac
+}
+
+main "$@"

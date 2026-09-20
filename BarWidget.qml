@@ -86,20 +86,40 @@ BarWidget {
   function rotate(direction) { root.runAction(["rotate", direction]) }
   function screenOff() { root.runAction(["dpms", "off"]) }
   function bgNext() { root.runAction(["bg-next"]) }
-  function themeFromCurrentBg() { root.runAction(["theme-from-bg"]) }
+  function bgPrev() { root.runAction(["bg-prev"]) }
   function reloadHyprland() { root.runAction(["reload"]) }
+
+  // Keep the Omarchy menu rows in step with this widget's "Omarchy menu rows"
+  // setting. The decision itself lives in chomsky-menu-install, which reads it
+  // out of shell.json: the settings object is not reliably populated when this
+  // widget's startup hook runs, and the shell may fire the hook more than once,
+  // so a sync that is safe to run concurrently is the only thing that works.
+  // Deliberately not driven from Component.onDestruction -- a plugin reload,
+  // which omarchy does whenever a file under the plugin directory is saved, is
+  // not the user asking for the rows to go away.
+  function syncMenuRows() {
+    if (!root.helperPath) return
+    Quickshell.execDetached(["bash", root.helperPath, "menu-install"])
+  }
 
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
   onBarChanged: injectPanel()
-  onSettingsChanged: injectPanel()
+  onSettingsChanged: {
+    injectPanel()
+    syncMenuRows()
+  }
 
   Component.onCompleted: {
-    // Re-apply whatever shader is on record. Replaces a hook that used to
-    // live in ~/.config/hypr/autostart.lua -- keeping it here means a fresh
-    // plugin install needs no edits to anyone's hyprland config.
-    if (root.helperPath) Quickshell.execDetached(["bash", root.helperPath, "shader", "restore"])
+    // Re-apply whatever shader is on record and make sure the Omarchy menu
+    // rows are in place. Replaces a hook that used to live in
+    // ~/.config/hypr/autostart.lua -- keeping it here means a fresh plugin
+    // install needs no edits to anyone's hyprland config.
+    if (root.helperPath) {
+      Quickshell.execDetached(["bash", root.helperPath, "shader", "restore"])
+      root.syncMenuRows()
+    }
   }
 
   Process {

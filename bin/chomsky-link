@@ -3,8 +3,8 @@
 # bundled CLIs, under their pre-Chomsky names. Not required for the plugin or
 # panel to work -- BarWidget.qml and the menu rows call the bin/ scripts
 # directly -- this is purely for keybinds and habits that already reference
-# omarchy-anim / omarchy-shader / omarchy-monitor-rotate /
-# omarchy-theme-from-wallpaper by name.
+# omarchy-anim / omarchy-shader / omarchy-monitor-rotate / omarchy-wallpaper
+# by name.
 #
 # Safe to re-run any time (e.g. after `omarchy plugin update`): each wrapper
 # is regenerated in place.
@@ -30,4 +30,4 @@ EOF
 write_wrapper omarchy-anim chomsky-anim
 write_wrapper omarchy-shader chomsky-shader
 write_wrapper omarchy-monitor-rotate chomsky-monitor-rotate
-write_wrapper omarchy-theme-from-wallpaper chomsky-theme-from-wallpaper
+write_wrapper omarchy-wallpaper chomsky-wallpaper
