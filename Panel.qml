@@ -62,11 +62,15 @@ Item {
   property color scrim: Color.menu.scrim
   readonly property int cornerRadius: Style.cornerRadius
   property int contentMargin: Style.spacing.panelPadding
-  property int contentSpacing: Style.space(12)
+  property int contentSpacing: Style.space(8)
 
-  // The card is sized to its content, never taller than the screen allows.
-  readonly property int cardWidth: Style.space(340)
+  // Height is fitted to the content, with the rest of the screen as margin --
+  // a taller panel than its content reads as a form, not a menu. Width is
+  // fixed: a menu that reflows as you move between sections looks jumpy, and
+  // this is a touch wider than the Omarchy menu's own card because the
+  // animation and shader rows put two buttons beside a search field.
   readonly property int neededHeight: root.contentMargin * 2 + content.implicitHeight
+  readonly property int cardWidth: Math.min(Style.space(340), panel.width - Style.gapsOut * 2)
   readonly property int cardHeight: Math.min(root.neededHeight, Math.max(Style.space(160), panel.height - Style.gapsOut * 2))
 
   // Where a keyboard-summoned panel belongs. Falls back to the default screen
@@ -285,6 +289,13 @@ Item {
       PanelKeyCatcher {
         id: keyCatcher
         anchors.fill: parent
+        // BorderSurface's `padding` is a set of insets for children to use,
+        // not something it applies itself -- without this the content sits
+        // flush against the card's border.
+        anchors.topMargin: card.contentTopInset
+        anchors.bottomMargin: card.contentBottomInset
+        anchors.leftMargin: card.contentLeftInset
+        anchors.rightMargin: card.contentRightInset
         // Suspend cursor-driven nav while a dropdown owns its own popup keys
         // (search field, result list, Esc-to-close) -- otherwise j/k here
         // would double-drive both the popup and the panel cursor underneath it.
@@ -310,9 +321,12 @@ Item {
             PanelHero {
               width: parent.width
               title: "Chomsky"
-              meta: root.animation + " · " + (root.shaderOn ? root.shaderName : "no shader")
-                + (root.themeName ? " · " + root.themeName : "")
-                + " · " + (root.keybindings === "dusky" ? "Dusky keys" : "Omarchy keys")
+              // The animation and shader are the two dropdowns immediately
+              // below, so repeating them here only made this line long enough
+              // to be cut off. The keybinding mode is the one piece of state
+              // with no control of its own in view, and it is short enough to
+              // never elide.
+              detail: root.keybindings === "dusky" ? "Dusky" : "Omarchy"
               foreground: root.foreground
               fontFamily: Style.font.family
               iconComponent: Component {
@@ -442,7 +456,7 @@ Item {
 
               Toggle {
                 width: parent.width
-                label: "Resize by border / dim inactive"
+                label: "Border resize & dim"
                 description: root.resizeOnBorder
                   ? "Drag any edge to resize; unfocused windows dim"
                   : "Omarchy defaults: SUPER-drag only, no dimming"
