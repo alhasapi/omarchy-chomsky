@@ -13,19 +13,21 @@
 # into the same extensions directory, so the rows keep working -- and can
 # clean themselves up -- even after the plugin is disabled or removed.
 #
-# Run with no arguments it *syncs*: it reads the widget's "Omarchy menu rows"
-# setting out of ~/.config/omarchy/shell.json and makes the file match, which
-# is what BarWidget.qml calls on startup and whenever settings change. That
-# decision lives here rather than in the QML because the settings object is
-# not reliably populated when the widget's own startup hook runs, and because
-# the shell can fire the hook more than once -- several concurrent runs are
-# normal, so the whole read-modify-write happens under a lock and is
-# idempotent. Calling it concurrently therefore converges instead of leaving
-# two blocks behind.
+# Run with no arguments it *syncs*: it reads the saved "Omarchy menu rows"
+# state and makes the file match. That is what BarWidget.qml and Service.qml
+# call on startup and whenever settings change. The decision lives here rather
+# than in the QML because the settings object is not reliably populated when
+# the widget's startup hook runs, and because the shell can fire the hook more
+# than once -- several concurrent runs are normal, so the whole read-modify-
+# write happens under a lock and is idempotent. Calling it concurrently
+# therefore converges instead of leaving two blocks behind.
 #
-# --enable and --remove force one outcome regardless of the setting, for use
-# from a terminal. Both are undone by the next sync (i.e. the next shell
-# start) unless the setting agrees with them.
+# --enable and --remove record "on"/"off" in
+# ~/.local/state/chomsky/menu-rows and apply it. That file, not the widget
+# setting, is the saved state: the widget setting is a knob that calls these
+# (so the rows can be turned on and off from the panel or with
+# `omarchy bar set <id> menuRows false --json`), and it lives on the bar entry,
+# which is exactly the thing a user may have moved off the bar to save space.
 
 set -euo pipefail
 
@@ -36,6 +38,8 @@ ENTRY="$EXT_DIR/chomsky-menu-entry"
 START='// >>> chomsky-menu >>>'
 END='// <<< chomsky-menu <<<'
 LOCK="$HOME/.local/state/chomsky/menu.lock"
+STATE_DIR="$HOME/.local/state/chomsky"
+STATE="$STATE_DIR/menu-rows"
 
 MODE=auto
 case "${1:-}" in
@@ -43,11 +47,11 @@ case "${1:-}" in
     cat <<'EOF'
 Usage: chomsky-menu-install [--enable | --remove]
 
-With no arguments, adds the Chomsky rows to the Omarchy menu if the plugin's
-"Omarchy menu rows" widget setting allows it, and removes them if it does not.
+With no arguments, adds the Chomsky rows to the Omarchy menu if the saved
+state says they are on, and removes them if it says they are off.
 
-  --enable   add (or refresh) the rows regardless of that setting
-  --remove   remove the rows and the chomsky-menu-entry helper
+  --enable   turn the rows on (and remember it)
+  --remove   turn the rows off (and remember it)
 EOF
     exit 0
     ;;
@@ -62,25 +66,18 @@ esac
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Read the one setting that decides all of this straight out of the shell
-# config: `omarchy bar set <id> menuRows false` writes it there, and entry
-# keys other than `id` are the widget's settings object. Missing config, a
-# missing widget, or a missing key all mean the default, which is on.
-menu_rows_setting() {
-  local conf="$HOME/.config/omarchy/shell.json"
-  [[ -f $conf ]] || { echo on; return; }
+# The saved state of the "Omarchy menu rows" toggle: `on` unless it has been
+# turned off. Deliberately not read from shell.json -- see the header.
+menu_rows_state() {
+  local saved=""
+  [[ -f "$STATE" ]] && saved="$(< "$STATE")"
 
-  local value
-  value=$(jq -r --arg id "$PLUGIN_ID" '
-    ([.bar.layout[]? | .[]? | select(type == "object" and .id == $id)][0]
-     | if . == null then true
-       elif has("menuRows") then .menuRows
-       else true
-       end)
-    | if . == false or . == "false" or . == 0 or . == "0" then "off" else "on" end
-  ' "$conf" 2>/dev/null) || { echo on; return; }
+  [[ "$saved" == "off" ]] && echo off || echo on
+}
 
-  [[ $value == off ]] && echo off || echo on
+save_menu_rows_state() {
+  mkdir -p "$STATE_DIR"
+  printf '%s\n' "$1" > "$STATE"
 }
 
 # Several runs at once are expected (the shell can fire its startup hook more
@@ -116,7 +113,11 @@ emit_block() {
   printf '  "style.wallpaper.next": {"icon":"󰒭","label":"Next background","description":"Cycle the active theme and ~/Pictures","action":"%s bg-next"},\n' "$ENTRY"
   printf '  "style.wallpaper.prev": {"icon":"󰒮","label":"Previous background","description":"Cycle the active theme and ~/Pictures","action":"%s bg-prev"},\n' "$ENTRY"
   printf '  "style.wallpaper.pick": {"icon":"","label":"Pick wallpaper...","action":"%s wallpaper-pick"},\n' "$ENTRY"
-  printf '  "style.chomsky": {"icon":"󰸉","label":"Chomsky Control Panel","description":"Open the Chomsky panel","aliases":["chomsky"],"action":"%s panel"}\n' "$ENTRY"
+  printf '  "style.keybindings": {"icon":"󰌌","label":"Keybindings","checked":"[ \\"$(%s current 2>/dev/null)\\" == \\"dusky\\" ]"},\n' "$SCRIPT_DIR/chomsky-keys"
+  printf '  "style.keybindings.dusky": {"icon":"󰌌","label":"Dusky keybindings","description":"Vim navigation, arrows resize, pickers and DPMS","checked":"[ \\"$(%s current 2>/dev/null)\\" == \\"dusky\\" ]","action":"%s keys-dusky"},\n' "$SCRIPT_DIR/chomsky-keys" "$ENTRY"
+  printf '  "style.keybindings.omarchy": {"icon":"󰌌","label":"Omarchy keybindings","description":"Omarchy default bindings","checked":"[ \\"$(%s current 2>/dev/null)\\" == \\"omarchy\\" ]","action":"%s keys-omarchy"},\n' "$SCRIPT_DIR/chomsky-keys" "$ENTRY"
+  printf '  "style.keybindings.show": {"icon":"󰌌","label":"Show current keybindings","action":"%s keys-show"},\n' "$ENTRY"
+  printf '  "style.chomsky": {"icon":"󰸉","label":"Chomsky panel","description":"Open the Chomsky panel (bar chip only)","aliases":["chomsky"],"when":"[[ -f $HOME/.local/state/chomsky/bar-chip ]]","action":"%s panel"}\n' "$ENTRY"
   printf '  %s\n' "$END"
 }
 
@@ -169,10 +170,11 @@ remove_block() {
 lock_ext
 
 if [[ $MODE == auto ]]; then
-  [[ $(menu_rows_setting) == on ]] && MODE=enable || MODE=remove
+  [[ $(menu_rows_state) == on ]] && MODE=enable || MODE=remove
 fi
 
 if [[ $MODE == remove ]]; then
+  save_menu_rows_state off
   remove_block
   # The copied entry script has nothing left to dispatch once the rows are
   # gone, so take it with them rather than leaving an orphan in the user's
@@ -180,6 +182,8 @@ if [[ $MODE == remove ]]; then
   rm -f "$ENTRY"
   exit 0
 fi
+
+save_menu_rows_state on
 
 mkdir -p "$EXT_DIR"
 install -m 755 "$SCRIPT_DIR/chomsky-menu-entry" "$ENTRY"

@@ -24,11 +24,25 @@ BarWidget {
   property bool resizeOnBorder: false
   property bool dimInactive: false
   property real dimStrength: 0.15
+  property string keybindings: "omarchy"
 
   readonly property string icon: "󰸉"
   readonly property color foreground: bar ? bar.barForeground : Color.foreground
 
   readonly property bool opened: panelLoader.item ? panelLoader.item.opened === true : false
+
+  // The Omarchy menu offers its "Chomsky panel" row only while a chip is on the
+  // bar to open it from. The row's `when:` guard tests this marker file rather
+  // than asking the shell over IPC: the menu evaluates its guards in a batch
+  // that the shell itself runs, so calling back into the shell from there is a
+  // way to hang the menu.
+  Component.onCompleted: {
+    if (root.helperPath) Quickshell.execDetached(["bash", root.helperPath, "chip", "on"])
+  }
+
+  Component.onDestruction: {
+    if (root.helperPath) Quickshell.execDetached(["bash", root.helperPath, "chip", "off"])
+  }
 
   function open() { if (panelLoader.item) panelLoader.item.open() }
   function close() { if (panelLoader.item) panelLoader.item.close() }
@@ -57,6 +71,7 @@ BarWidget {
       root.resizeOnBorder = parsed.resizeOnBorder === true
       root.dimInactive = parsed.dimInactive === true
       root.dimStrength = typeof parsed.dimStrength === "number" ? parsed.dimStrength : 0.15
+      root.keybindings = parsed.keybindings === "dusky" ? "dusky" : "omarchy"
     } catch (e) {}
   }
 
@@ -88,18 +103,22 @@ BarWidget {
   function bgNext() { root.runAction(["bg-next"]) }
   function bgPrev() { root.runAction(["bg-prev"]) }
   function reloadHyprland() { root.runAction(["reload"]) }
+  function setKeybindings(mode) { root.runAction(["keys", mode]) }
+  function toggleKeybindings() { root.setKeybindings(root.keybindings === "dusky" ? "omarchy" : "dusky") }
 
-  // Keep the Omarchy menu rows in step with this widget's "Omarchy menu rows"
-  // setting. The decision itself lives in chomsky-menu-install, which reads it
-  // out of shell.json: the settings object is not reliably populated when this
-  // widget's startup hook runs, and the shell may fire the hook more than once,
-  // so a sync that is safe to run concurrently is the only thing that works.
-  // Deliberately not driven from Component.onDestruction -- a plugin reload,
-  // which omarchy does whenever a file under the plugin directory is saved, is
-  // not the user asking for the rows to go away.
-  function syncMenuRows() {
+  // The Omarchy menu rows are the plugin's main UI, so the chip is optional:
+  // Service.qml owns everything that has to happen at startup. The widget only
+  // turns the rows on and off, and only when the user has actually set that
+  // setting -- `settings` can arrive half-populated, and the saved state file
+  // (not this) is what the sync applies.
+  function syncMenuRowsFromSettings() {
     if (!root.helperPath) return
-    Quickshell.execDetached(["bash", root.helperPath, "menu-install"])
+    var settings = root.settings
+    if (!settings || settings.menuRows === undefined) return
+
+    var wanted = settings.menuRows
+    var on = wanted === true || wanted === "true" || wanted === 1
+    Quickshell.execDetached(["bash", root.helperPath, "menu-install", on ? "--enable" : "--remove"])
   }
 
   implicitWidth: button.implicitWidth
@@ -108,18 +127,7 @@ BarWidget {
   onBarChanged: injectPanel()
   onSettingsChanged: {
     injectPanel()
-    syncMenuRows()
-  }
-
-  Component.onCompleted: {
-    // Re-apply whatever shader is on record and make sure the Omarchy menu
-    // rows are in place. Replaces a hook that used to live in
-    // ~/.config/hypr/autostart.lua -- keeping it here means a fresh plugin
-    // install needs no edits to anyone's hyprland config.
-    if (root.helperPath) {
-      Quickshell.execDetached(["bash", root.helperPath, "shader", "restore"])
-      root.syncMenuRows()
-    }
+    syncMenuRowsFromSettings()
   }
 
   Process {
@@ -163,6 +171,15 @@ BarWidget {
     printErrors: false
     onFileChanged: root.refresh()
   }
+  // The keybinding mode is owned by chomsky-keys, which writes this toggle
+  // file -- watching it is how a switch made from the menu or a terminal shows
+  // up in the panel and the chip's tooltip.
+  FileView {
+    path: Quickshell.env("HOME") + "/.local/state/omarchy/toggles/hypr/chomsky-keys.lua"
+    watchChanges: true
+    printErrors: false
+    onFileChanged: root.refresh()
+  }
 
   Loader {
     id: panelLoader
@@ -183,6 +200,7 @@ BarWidget {
     function show(): void { root.open() }
     function hide(): void { root.close() }
     function toggle(): void { root.toggle() }
+    function ping(): string { return "ok" }
   }
 
   BarIconButton {
@@ -194,6 +212,7 @@ BarWidget {
     activeColor: Color.accent
     tooltipText: "Animation: " + root.animation + " · Shader: " + root.shader
       + (root.theme ? " · Theme: " + root.theme : "")
+      + " · Keys: " + root.keybindings
     onPressed: function(b) { root.toggle() }
 
     // A small circular portrait instead of a glyph -- credited to Augusto

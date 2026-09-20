@@ -22,6 +22,7 @@ Panel {
   readonly property string themeName: hostWidget && hostWidget.theme ? hostWidget.theme : ""
   readonly property bool resizeOnBorder: hostWidget && hostWidget.resizeOnBorder === true
   readonly property real dimStrength: hostWidget && typeof hostWidget.dimStrength === "number" ? hostWidget.dimStrength : 0.15
+  readonly property string keybindings: hostWidget && hostWidget.keybindings === "dusky" ? "dusky" : "omarchy"
 
   property var animationList: []
   property var shaderList: []
@@ -32,7 +33,7 @@ Panel {
   // worth the extra index bookkeeping for a single control.
   property int cursorIndex: 0
   property bool cursorActive: false
-  readonly property int cursorCount: 13
+  readonly property int cursorCount: 14
 
   function open() {
     root.controller.show()
@@ -74,12 +75,13 @@ Panel {
       case 4: root.shaderPrev(); break
       case 5: root.shaderNext(); break
       case 6: root.toggleWindowBehavior(); break
-      case 7: root.rotate("ccw"); break
-      case 8: root.rotate("cw"); break
-      case 9: root.screenOff(); break
-      case 10: root.bgPrev(); break
-      case 11: root.bgNext(); break
-      case 12: root.reloadHyprland(); break
+      case 7: root.toggleKeybindings(); break
+      case 8: root.rotate("ccw"); break
+      case 9: root.rotate("cw"); break
+      case 10: root.screenOff(); break
+      case 11: root.bgPrev(); break
+      case 12: root.bgNext(); break
+      case 13: root.reloadHyprland(); break
     }
   }
 
@@ -113,6 +115,9 @@ Panel {
   }
   function toggleWindowBehavior() {
     if (hostWidget && hostWidget.toggleWindowBehavior) hostWidget.toggleWindowBehavior()
+  }
+  function toggleKeybindings() {
+    if (hostWidget && hostWidget.toggleKeybindings) hostWidget.toggleKeybindings()
   }
   function setDimStrength(v) {
     if (hostWidget && hostWidget.setDimStrength) hostWidget.setDimStrength(v)
@@ -191,6 +196,7 @@ Panel {
           title: "Chomsky"
           meta: root.animation + " · " + (root.shaderOn ? root.shaderName : "no shader")
             + (root.themeName ? " · " + root.themeName : "")
+            + " · " + (root.keybindings === "dusky" ? "Dusky keys" : "Omarchy keys")
           foreground: root.foreground
           fontFamily: root.fontFamily
           iconComponent: Component {
@@ -357,6 +363,30 @@ Panel {
 
         PanelSeparator { foreground: root.foreground }
 
+        // ---- Keybindings ----
+        Column {
+          width: parent.width
+          spacing: Style.space(8)
+
+          PanelSectionHeader { text: "KEYBINDINGS"; foreground: root.foreground; fontFamily: root.fontFamily }
+
+          Toggle {
+            width: parent.width
+            label: "Dusky keybindings"
+            description: root.keybindings === "dusky"
+              ? "Vim H/J/K/L focus, arrows resize, SUPER + ALT pickers"
+              : "Omarchy's shipped bindings: SUPER + J/K/L and the arrows"
+            checked: root.keybindings === "dusky"
+            foreground: root.foreground
+            accent: Color.accent
+            fontFamily: root.fontFamily
+            hasCursor: root.cursorActive && root.cursorIndex === 7
+            onClicked: root.toggleKeybindings()
+          }
+        }
+
+        PanelSeparator { foreground: root.foreground }
+
         // ---- Display ----
         Column {
           width: parent.width
@@ -374,7 +404,7 @@ Panel {
               foreground: root.foreground
               fontFamily: root.fontFamily
               bordered: true
-              hasCursor: root.cursorActive && root.cursorIndex === 7
+              hasCursor: root.cursorActive && root.cursorIndex === 8
               onClicked: root.rotate("ccw")
             }
             Button {
@@ -383,7 +413,7 @@ Panel {
               foreground: root.foreground
               fontFamily: root.fontFamily
               bordered: true
-              hasCursor: root.cursorActive && root.cursorIndex === 8
+              hasCursor: root.cursorActive && root.cursorIndex === 9
               onClicked: root.rotate("cw")
             }
             Button {
@@ -392,7 +422,7 @@ Panel {
               foreground: root.foreground
               fontFamily: root.fontFamily
               bordered: true
-              hasCursor: root.cursorActive && root.cursorIndex === 9
+              hasCursor: root.cursorActive && root.cursorIndex === 10
               onClicked: root.screenOff()
             }
           }
@@ -418,7 +448,7 @@ Panel {
               foreground: root.foreground
               fontFamily: root.fontFamily
               bordered: true
-              hasCursor: root.cursorActive && root.cursorIndex === 10
+              hasCursor: root.cursorActive && root.cursorIndex === 11
               onClicked: root.bgPrev()
             }
 
@@ -429,7 +459,7 @@ Panel {
               foreground: root.foreground
               fontFamily: root.fontFamily
               bordered: true
-              hasCursor: root.cursorActive && root.cursorIndex === 11
+              hasCursor: root.cursorActive && root.cursorIndex === 12
               onClicked: root.bgNext()
             }
           }
@@ -445,7 +475,7 @@ Panel {
           foreground: root.foreground
           fontFamily: root.fontFamily
           bordered: true
-          hasCursor: root.cursorActive && root.cursorIndex === 12
+          hasCursor: root.cursorActive && root.cursorIndex === 13
           onClicked: root.reloadHyprland()
         }
       }
