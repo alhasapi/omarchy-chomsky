@@ -150,21 +150,21 @@ Item {
 
   function activateCursor() {
     switch (root.cursorIndex) {
-      case 0: animDropdown.open(); break
-      case 1: root.animPrev(); break
-      case 2: root.animNext(); break
-      case 3: shaderDropdown.open(); break
-      case 4: root.shaderPrev(); break
-      case 5: root.shaderNext(); break
-      case 6: root.toggleWindowBehavior(); break
-      case 7: root.toggleKeybindings(); break
-      case 8: root.rotate("ccw"); break
-      case 9: root.rotate("cw"); break
-      case 10: root.screenOff(); break
-      case 11: root.bgPrev(); break
-      case 12: root.bgNext(); break
-      case 13: root.pickWallpaper(); break
-      case 14: root.toggleBarChip(); break
+      case 0: root.toggleBarChip(); break
+      case 1: animDropdown.open(); break
+      case 2: root.animPrev(); break
+      case 3: root.animNext(); break
+      case 4: shaderDropdown.open(); break
+      case 5: root.shaderPrev(); break
+      case 6: root.shaderNext(); break
+      case 7: root.toggleWindowBehavior(); break
+      case 8: root.toggleKeybindings(); break
+      case 9: root.rotate("ccw"); break
+      case 10: root.rotate("cw"); break
+      case 11: root.screenOff(); break
+      case 12: root.bgPrev(); break
+      case 13: root.bgNext(); break
+      case 14: root.pickWallpaper(); break
     }
   }
 
@@ -351,6 +351,27 @@ Item {
                   }
                 }
               }
+
+              // The chip's on/off switch, on the trailing edge of the hero --
+              // where Omarchy's own panels (bluetooth, network, dropbox) put
+              // their power switch, rather than as a row of its own.
+              trailingControl: Component {
+                ToggleSwitch {
+                  id: chipSwitch
+                  checked: root.barChip
+                  hasCursor: root.cursorActive && root.cursorIndex === 0
+                  foreground: root.foreground
+                  onToggled: root.toggleBarChip()
+
+                  PanelToolTip {
+                    visible: chipSwitch.containsMouse
+                    text: root.barChip
+                      ? "Bar chip on — click to take it off the bar"
+                      : "Bar chip off — click to put it on the bar"
+                    fontFamily: Style.font.family
+                  }
+                }
+              }
             }
 
             PanelSeparator { foreground: root.foreground }
@@ -375,7 +396,7 @@ Item {
                   options: root.animationList.map(function(a) { return a.name })
                   foreground: root.foreground
                   fontFamily: Style.font.family
-                  hasCursor: root.cursorActive && root.cursorIndex === 0
+                  hasCursor: root.cursorActive && root.cursorIndex === 1
                   onChanged: function(v) { root.setAnimation(v) }
                 }
                 PanelActionButton {
@@ -386,7 +407,7 @@ Item {
                   foreground: root.foreground
                   fontFamily: Style.font.family
                   bordered: true
-                  hasCursor: root.cursorActive && root.cursorIndex === 1
+                  hasCursor: root.cursorActive && root.cursorIndex === 2
                   onClicked: root.animPrev()
                 }
                 PanelActionButton {
@@ -397,7 +418,7 @@ Item {
                   foreground: root.foreground
                   fontFamily: Style.font.family
                   bordered: true
-                  hasCursor: root.cursorActive && root.cursorIndex === 2
+                  hasCursor: root.cursorActive && root.cursorIndex === 3
                   onClicked: root.animNext()
                 }
               }
@@ -426,7 +447,7 @@ Item {
                     root.shaderList.map(function(s) { return { value: s.name, label: s.name } }))
                   foreground: root.foreground
                   fontFamily: Style.font.family
-                  hasCursor: root.cursorActive && root.cursorIndex === 3
+                  hasCursor: root.cursorActive && root.cursorIndex === 4
                   onChanged: function(v) { v === "off" ? root.shaderOff() : root.setShader(v) }
                 }
                 PanelActionButton {
@@ -437,7 +458,7 @@ Item {
                   foreground: root.foreground
                   fontFamily: Style.font.family
                   bordered: true
-                  hasCursor: root.cursorActive && root.cursorIndex === 4
+                  hasCursor: root.cursorActive && root.cursorIndex === 5
                   onClicked: root.shaderPrev()
                 }
                 PanelActionButton {
@@ -448,7 +469,7 @@ Item {
                   foreground: root.foreground
                   fontFamily: Style.font.family
                   bordered: true
-                  hasCursor: root.cursorActive && root.cursorIndex === 5
+                  hasCursor: root.cursorActive && root.cursorIndex === 6
                   onClicked: root.shaderNext()
                 }
               }
@@ -473,7 +494,7 @@ Item {
                 foreground: root.foreground
                 accent: Color.accent
                 fontFamily: Style.font.family
-                hasCursor: root.cursorActive && root.cursorIndex === 6
+                hasCursor: root.cursorActive && root.cursorIndex === 7
                 onClicked: root.toggleWindowBehavior()
               }
 
@@ -519,7 +540,7 @@ Item {
                 foreground: root.foreground
                 accent: Color.accent
                 fontFamily: Style.font.family
-                hasCursor: root.cursorActive && root.cursorIndex === 7
+                hasCursor: root.cursorActive && root.cursorIndex === 8
                 onClicked: root.toggleKeybindings()
               }
             }
@@ -543,7 +564,7 @@ Item {
                   foreground: root.foreground
                   fontFamily: Style.font.family
                   bordered: true
-                  hasCursor: root.cursorActive && root.cursorIndex === 8
+                  hasCursor: root.cursorActive && root.cursorIndex === 9
                   onClicked: root.rotate("ccw")
                 }
                 Button {
@@ -552,7 +573,7 @@ Item {
                   foreground: root.foreground
                   fontFamily: Style.font.family
                   bordered: true
-                  hasCursor: root.cursorActive && root.cursorIndex === 9
+                  hasCursor: root.cursorActive && root.cursorIndex === 10
                   onClicked: root.rotate("cw")
                 }
                 Button {
@@ -561,7 +582,7 @@ Item {
                   foreground: root.foreground
                   fontFamily: Style.font.family
                   bordered: true
-                  hasCursor: root.cursorActive && root.cursorIndex === 10
+                  hasCursor: root.cursorActive && root.cursorIndex === 11
                   onClicked: root.screenOff()
                 }
               }
@@ -587,7 +608,7 @@ Item {
                   foreground: root.foreground
                   fontFamily: Style.font.family
                   bordered: true
-                  hasCursor: root.cursorActive && root.cursorIndex === 11
+                  hasCursor: root.cursorActive && root.cursorIndex === 12
                   onClicked: root.bgPrev()
                 }
 
@@ -598,7 +619,7 @@ Item {
                   foreground: root.foreground
                   fontFamily: Style.font.family
                   bordered: true
-                  hasCursor: root.cursorActive && root.cursorIndex === 12
+                  hasCursor: root.cursorActive && root.cursorIndex === 13
                   onClicked: root.bgNext()
                 }
               }
@@ -610,34 +631,8 @@ Item {
                 foreground: root.foreground
                 fontFamily: Style.font.family
                 bordered: true
-                hasCursor: root.cursorActive && root.cursorIndex === 13
-                onClicked: root.pickWallpaper()
-              }
-            }
-
-            PanelSeparator { foreground: root.foreground }
-
-            // The chip is the only part of the plugin that takes bar space,
-            // and it is off by default -- so the way back on belongs here,
-            // next to everything else the panel controls.
-            Column {
-              width: parent.width
-              spacing: root.contentSpacing
-
-              PanelSectionHeader { text: "BAR CHIP"; foreground: root.foreground; fontFamily: Style.font.family }
-
-              Toggle {
-                width: parent.width
-                label: "Show the bar chip"
-                description: root.barChip
-                  ? "On the bar. Everything works without it too"
-                  : "Off. This panel and the Omarchy menu work without it"
-                checked: root.barChip
-                foreground: root.foreground
-                accent: Color.accent
-                fontFamily: Style.font.family
                 hasCursor: root.cursorActive && root.cursorIndex === 14
-                onClicked: root.toggleBarChip()
+                onClicked: root.pickWallpaper()
               }
             }
           }

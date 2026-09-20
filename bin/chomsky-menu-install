@@ -100,10 +100,6 @@ emit_block() {
   # that is not also a bar widget. Summoned through the host so it works with
   # no chip on the bar and opens centered on the focused monitor.
   printf '  "style.chomsky": {"icon":"󰸉","label":"Chomsky panel","description":"Animations, shaders, keybindings, wallpaper and display in one panel","aliases":["chomsky"],"action":"omarchy-shell shell toggle alhasapi.chomsky"},\n'
-  # Sits next to the panel row because it is about the plugin's own UI: the
-  # chip is the one part of Chomsky that takes bar space, and it is off by
-  # default (the plugin works without it), so offer the way back on.
-  printf '  "style.chomsky-bar": {"icon":"󰍜","label":"Chomsky bar chip","description":"Show the Chomsky chip on the bar","checked":"[ \\\"$(%s status 2>/dev/null)\\\" == \\\"on\\\" ]","action":"%s bar-chip"},\n' "$SCRIPT_DIR/chomsky-bar" "$ENTRY"
   printf '  "style.animation": {"icon":"󰸉","label":"Animation","aliases":["animation","animations"],"description":"Switch or cycle Hyprland animation presets","action":"%s animation","checked":"[ \\"$(%s current 2>/dev/null)\\" != \\"disable\\" ]"},\n' "$ENTRY" "$SCRIPT_DIR/chomsky-anim"
   printf '  "style.shader": {"icon":"󰄄","label":"Shader","checked":"[ \\"$(%s current 2>/dev/null)\\" != \\"off\\" ]"},\n' "$SCRIPT_DIR/chomsky-shader"
   printf '  "style.shader.pick": {"icon":"󰄄","label":"Pick shader...","aliases":["shader","shaders"],"action":"%s shader"},\n' "$ENTRY"

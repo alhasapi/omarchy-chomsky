@@ -78,8 +78,10 @@ the screen is too short for that. (A popup anchored to a bar widget is capped by
 the distance from the bar to the screen edge instead, which silently cut off
 whatever did not fit.)
 
-The rows are Animations, Shader, Window Behavior, Keybindings, Display,
-Wallpaper and Bar chip -- that last one being the switch for the chip below.
+The card's rows are Animations, Shader, Window Behavior, Keybindings, Display
+and Wallpaper. The switch for the bar chip sits at the top of the card, on the
+trailing edge of the header, where Omarchy's own panels (bluetooth, network,
+dropbox) put their power switches.
 
 Keyboard: `j`/`k` or the arrows move the cursor, `Enter` activates, `Esc`
 closes, and a click on the scrim closes. The animation and shader pickers are
@@ -93,8 +95,7 @@ command away anywhere else (`hyprctl reload`).
 
 The chip is optional, and nothing else depends on it:
 
-From the panel, the **Bar chip** row at the bottom; from the Omarchy menu,
-**Style > Chomsky bar chip**; or from a terminal:
+From the panel, the switch at the top right of the card; or from a terminal:
 
 ```bash
 ~/.config/omarchy/plugins/alhasapi.chomsky/bin/chomsky-bar on      # put it on the bar
@@ -165,7 +166,6 @@ from the keyboard-driven menu even when the bar is hidden or the chip is off:
 ```
 Style
 ├── Chomsky panel                 the panel below (alias: `chomsky`)
-├── Chomsky bar chip              ✓ while the chip is on the bar
 ├── Animation                     animation picker; ✓ unless the preset is `disable`
 ├── Shader
 │   ├── Pick shader...            (alias: `shader`)
