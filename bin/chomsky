@@ -8,7 +8,6 @@
 set -uo pipefail
 
 readonly BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly STATE_DIR="$HOME/.local/state/chomsky"
 
 err() { echo "chomsky: $*" >&2; }
 
@@ -74,20 +73,6 @@ case "${1:-}" in
   window) shift; exec "$BIN_DIR/chomsky-window" "$@" ;;
   rotate) shift; exec "$BIN_DIR/chomsky-monitor-rotate" "$@" ;;
   keys) shift; exec "$BIN_DIR/chomsky-keys" "$@" ;;
-  chip)
-    # Marks "a bar chip exists", which is what the Omarchy menu row for the
-    # panel is gated on. Kept as a file so the menu's guard batch never has to
-    # call back into the shell.
-    shift
-    case "${1:-}" in
-      on)
-        mkdir -p "$STATE_DIR"
-        : > "$STATE_DIR/bar-chip"
-        ;;
-      off) rm -f "$STATE_DIR/bar-chip" ;;
-      *) err "usage: chomsky chip <on|off>"; exit 1 ;;
-    esac
-    ;;
   bg-next) exec "$BIN_DIR/chomsky-wallpaper" next ;;
   bg-prev) exec "$BIN_DIR/chomsky-wallpaper" prev ;;
   wallpaper) shift; exec "$BIN_DIR/chomsky-wallpaper" "$@" ;;
@@ -102,7 +87,7 @@ case "${1:-}" in
     esac
     ;;
   *)
-    echo "Usage: chomsky <status|animations|shaders|anim|shader|window|keys|chip|rotate|bg-next|bg-prev|wallpaper|menu-install|reload|dpms> ..." >&2
+    echo "Usage: chomsky <status|animations|shaders|anim|shader|window|keys|rotate|bg-next|bg-prev|wallpaper|menu-install|reload|dpms> ..." >&2
     exit 1
     ;;
 esac

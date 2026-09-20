@@ -7,9 +7,11 @@ the active theme and your own `~/Pictures`, and a switch between Omarchy's
 keybindings and Dusky's. Everything is bundled -- no edits to your own
 `~/.config/hypr/*.lua` files required.
 
-It is built to be driven from the **Omarchy menu** rather than from the bar, so
-the bar chip is optional: `bin/chomsky-bar off` takes it off the bar and leaves
-the plugin, its menu rows and its startup service running.
+It is built to be driven from the **Omarchy menu** rather than from the bar.
+Every action has a row under **Style**, and the panel behind them is a centered
+overlay in the same shape as Omarchy's own menu -- so nothing has to sit on the
+bar for the plugin to be usable. The chip is opt-in:
+`bin/chomsky-bar on` puts it on, `off` takes it off again.
 
 ![Panel preview](preview.png)
 
@@ -28,6 +30,14 @@ omarchy-shell shell rescanPlugins
 omarchy plugin enable alhasapi.chomsky
 ```
 
+Enabling a plugin with a bar widget puts that widget on the bar -- Omarchy's
+choice, not the plugin's. If you would rather have the plugin without the chip,
+take it off:
+
+```bash
+~/.config/omarchy/plugins/alhasapi.chomsky/bin/chomsky-bar off
+```
+
 ## What it does
 
 | Section | What it does |
@@ -40,19 +50,45 @@ omarchy plugin enable alhasapi.chomsky
 | **Wallpaper** | Cycle to the previous/next background across the active theme and `~/Pictures`, or pick one from a thumbnail grid |
 
 Every one of those is available three ways: from the Omarchy menu (each gets its
-own row under **Style**), from the panel behind the bar chip, and from the CLIs
-in `bin/`. The panel is the mouse-friendly view -- animation/shader dropdowns,
-the dim-strength slider, the keybinding toggle. With the chip on the bar, the
-chip's ring lights up (accent color) while a shader is active, and its tooltip
-shows the current animation, shader, theme and keybinding mode.
+own row under **Style**), from the panel (Style > **Chomsky panel**, or
+`omarchy-shell shell toggle alhasapi.chomsky`), and from the CLIs in `bin/`.
+The panel is the mouse-friendly view -- animation/shader dropdowns, the
+dim-strength slider, the keybinding toggle, the wallpaper picker -- and it opens
+centered on the focused monitor with a scrim over everything else, the way the
+Omarchy menu does.
 
-## Running without the bar chip
+If you also want the chip on the bar, it shows the animation and shader at a
+glance: its ring lights up (accent color) while a shader is active, its tooltip
+lists the current animation, shader, theme and keybinding mode, and clicking it
+opens the same panel.
 
-The menu is the primary surface, so the chip is optional:
+## The panel
+
+The panel is a full-screen overlay with the card centered in it: one layer
+surface, a scrim, and the same colors, radius, padding and border spec the
+Omarchy menu uses. It is summoned from the menu, or directly:
 
 ```bash
-~/.config/omarchy/plugins/alhasapi.chomsky/bin/chomsky-bar off   # free the space
-~/.config/omarchy/plugins/alhasapi.chomsky/bin/chomsky-bar on    # put it back
+omarchy-shell shell toggle alhasapi.chomsky
+```
+
+Because the card is centered rather than hanging off a bar icon, it is as tall
+as its content -- with the leftover space as its margin -- and scrolls only if
+the screen is too short for that. (A popup anchored to a bar widget is capped by
+the distance from the bar to the screen edge instead, which silently cut off
+whatever did not fit.)
+
+Keyboard: `j`/`k` or the arrows move the cursor, `Enter` activates, `Esc`
+closes, and a click on the scrim closes. The animation and shader pickers are
+type-to-search dropdowns.
+
+## The bar chip
+
+The chip is optional, and nothing else depends on it:
+
+```bash
+~/.config/omarchy/plugins/alhasapi.chomsky/bin/chomsky-bar on    # put it on the bar
+~/.config/omarchy/plugins/alhasapi.chomsky/bin/chomsky-bar off   # take it off
 ```
 
 `off` moves the widget's entry out of `bar.layout` and into shell.json's
@@ -61,12 +97,13 @@ entry from the bar by hand instead switches the whole plugin off: a third-party
 bar widget counts as enabled only while it is either placed in the bar or listed
 in `plugins` (see `PluginRegistry.findEntryLocation`). `off` writes the file
 atomically, validates it first, and leaves a timestamped
-`shell.json.bak.<epoch>` beside it.
+`shell.json.bak.<epoch>` beside it. `chomsky-bar status` says which mode you are
+in.
 
-With the chip off the bar, the Omarchy menu rows, the shader restoring itself at
-login, the wallpaper cycling and the keybinding switch all keep working -- the
-menu's own "Chomsky panel" row hides itself, since there is no chip to anchor a
-panel to. `chomsky-bar status` says which mode you are in.
+With no chip on the bar everything still works: the menu rows, the panel, the
+keybinding switch, the wallpaper cycling, and the saved shader being restored at
+login -- that last one lives in a service, not in the widget, precisely so it
+survives the chip going away.
 
 ## Keybindings: Dusky or Omarchy
 
@@ -75,7 +112,7 @@ between Omarchy's shipped bindings and the Dusky port:
 
 | | |
 |---|---|
-| **Dusky** | `SUPER + H/J/K/L` vim focus, `SUPER + SHIFT + H/J` swap, arrows resize (repeating), `SUPER + ALT + A` animation picker, `SUPER + ALT + X` shader picker, `CTRL + ALT + R`/`+SHIFT` rotate, `ALT + F7`/`F8` DPMS, `SUPER + SHIFT + R` reload, `SUPER + SHIFT + ESCAPE` click-to-kill, `SUPER + apostrophe` next wallpaper, `SUPER + SHIFT + apostrophe` pick wallpaper |
+| **Dusky** | `SUPER + H/J/K/L` vim focus, `SUPER + SHIFT + H/J` swap, arrows resize (repeating), `SUPER + ALT + A` animation picker, `SUPER + ALT + X` shader picker, `CTRL + ALT + R`/`+SHIFT` rotate, `ALT + F7`/`F8` DPMS, `SUPER + SHIFT + R` reload, `SUPER + SHIFT + ESCAPE` click-to-kill, `SUPER + apostrophe` next wallpaper, `SUPER + SHIFT + apostrophe` previous wallpaper |
 | **Omarchy** | The shipped defaults, including the seven bindings Dusky takes over: `SUPER + J` split, `SUPER + K` keybindings, `SUPER + L` workspace layout, `SUPER + arrow` focus |
 
 The three Omarchy bindings the vim keys displace move rather than disappear:
@@ -116,6 +153,7 @@ from the keyboard-driven menu even when the bar is hidden or the chip is off:
 
 ```
 Style
+├── Chomsky panel                 the panel below (alias: `chomsky`)
 ├── Animation                     animation picker; ✓ unless the preset is `disable`
 ├── Shader
 │   ├── Pick shader...            (alias: `shader`)
@@ -134,7 +172,6 @@ Style
 ├── Wallpaper
 │   ├── Previous background / Next background
 │   └── Pick wallpaper...         thumbnail grid, active one highlighted
-└── Chomsky panel                 only while a chip is on the bar (alias: `chomsky`)
 ```
 
 They are installed on shell start, as one marker-delimited block in
@@ -148,7 +185,8 @@ omarchy bar set alhasapi.chomsky menuRows false --json   # the widget setting
 
 `bin/chomsky-menu-install --enable` brings them back; `--help` explains the
 rest. The choice is saved in `~/.local/state/chomsky/menu-rows`, so it survives
-the chip being taken off the bar, plugin updates and restarts.
+plugin updates and restarts. With the chip on the bar, the `menuRows` widget
+setting writes the same state.
 
 The rows keep working while the plugin is disabled or the chip is off the bar;
 they only stop once the plugin directory is deleted, at which point clicking one
@@ -200,14 +238,46 @@ bin/chomsky-bar     {on,off,status}
 bin/chomsky-menu-install [--enable|--remove]
 ```
 
-`bin/chomsky` is the single entry point the QML calls, so the panel only ever
-depends on that one script. `bin/chomsky-menu-entry` is the row-action
-dispatcher that `chomsky-menu-install` copies into
-`~/.config/omarchy/extensions/` for the menu rows to call.
+`bin/chomsky` is the single entry point the QML calls, so the plugin's QML
+depends on that one script rather than on a dozen argv conventions.
+`bin/chomsky-menu-entry` is the row-action dispatcher that
+`chomsky-menu-install` copies into `~/.config/omarchy/extensions/` for the menu
+rows to call.
 
 `bin/chomsky-link` regenerates thin `~/.local/bin/omarchy-*` wrappers onto the
 animation, shader, rotation and wallpaper CLIs, if you want them on `PATH` under
 those names -- handy for keybinds. Safe to re-run any time.
+
+## How it is put together
+
+The plugin declares three entry points, and the split is what makes the chip
+optional:
+
+| | |
+|---|---|
+| `Service.qml` | `service` kind. Mounted whenever the plugin is enabled, placed or not. Owns the state the panel and the chip display, every CLI call, the shader restore at login, and the menu-row sync. |
+| `Panel.qml` | `panel` kind. The centered overlay. A view only: it reads state from the service the host injects and calls its actions. Summoned and hidden by the host. |
+| `BarWidget.qml` | `bar-widget` kind. The optional chip. Reads the same service, and asks the host to toggle the panel -- it does not own the panel. |
+
+## Backgrounds and themes
+
+Omarchy does not regenerate theme colors when the background changes. Its own
+background switcher (`omarchy theme bg next`) symlinks the image and tells the
+shell to show it -- no color path at all; colors change when you switch
+*themes* (`omarchy theme set`), which also happens to pick a background for the
+new theme. Chomsky's wallpaper cycling goes through the same
+`omarchy-theme-bg-set`, so it behaves exactly like Style > Background, and
+changing a background deliberately leaves your colors alone.
+
+`aether` (a desktop theme generator, `aether --generate <wallpaper>`) is
+installed but nothing in Omarchy calls it, so "generate a theme from this
+wallpaper" is not an Omarchy behaviour this plugin could match. If you want it
+as an explicit extra action, say so -- it belongs behind its own menu row rather
+than on the wallpaper keys, since it renders every app's template.
+
+Nothing announces a background change: Omarchy notifies when a *theme* switch
+found no background (`No background was found for theme`), which is a different
+path, and the plugin stays quiet.
 
 ## Not covered
 
@@ -219,7 +289,8 @@ them. Click-to-kill *is* covered: it is part of the Dusky keybinding set.
 The pre-2.0 `theme-from-wallpaper` feature (generate a whole Omarchy theme from
 an image with `matugen`) was dropped: Omarchy's own `Style > Theme` covers theme
 switching, and this plugin now only cycles and picks backgrounds. It is still in
-git history if you want it back.
+git history if you want it back. See *Backgrounds and themes* above for why a
+background change does not regenerate colors on its own.
 
 ## License
 

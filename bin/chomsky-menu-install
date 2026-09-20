@@ -96,6 +96,10 @@ lock_ext() {
 # the last row (the caller/fixup pass reconciles commas around it).
 emit_block() {
   printf '  %s\n' "$START"
+  # The panel first: it is the plugin's main UI, and it is the one thing here
+  # that is not also a bar widget. Summoned through the host so it works with
+  # no chip on the bar and opens centered on the focused monitor.
+  printf '  "style.chomsky": {"icon":"󰸉","label":"Chomsky panel","description":"Animations, shaders, keybindings, wallpaper and display in one panel","aliases":["chomsky"],"action":"omarchy-shell shell toggle alhasapi.chomsky"},\n'
   printf '  "style.animation": {"icon":"󰸉","label":"Animation","aliases":["animation","animations"],"description":"Switch or cycle Hyprland animation presets","action":"%s animation","checked":"[ \\"$(%s current 2>/dev/null)\\" != \\"disable\\" ]"},\n' "$ENTRY" "$SCRIPT_DIR/chomsky-anim"
   printf '  "style.shader": {"icon":"󰄄","label":"Shader","checked":"[ \\"$(%s current 2>/dev/null)\\" != \\"off\\" ]"},\n' "$SCRIPT_DIR/chomsky-shader"
   printf '  "style.shader.pick": {"icon":"󰄄","label":"Pick shader...","aliases":["shader","shaders"],"action":"%s shader"},\n' "$ENTRY"
@@ -116,8 +120,7 @@ emit_block() {
   printf '  "style.keybindings": {"icon":"󰌌","label":"Keybindings","checked":"[ \\"$(%s current 2>/dev/null)\\" == \\"dusky\\" ]"},\n' "$SCRIPT_DIR/chomsky-keys"
   printf '  "style.keybindings.dusky": {"icon":"󰌌","label":"Dusky keybindings","description":"Vim navigation, arrows resize, pickers and DPMS","checked":"[ \\"$(%s current 2>/dev/null)\\" == \\"dusky\\" ]","action":"%s keys-dusky"},\n' "$SCRIPT_DIR/chomsky-keys" "$ENTRY"
   printf '  "style.keybindings.omarchy": {"icon":"󰌌","label":"Omarchy keybindings","description":"Omarchy default bindings","checked":"[ \\"$(%s current 2>/dev/null)\\" == \\"omarchy\\" ]","action":"%s keys-omarchy"},\n' "$SCRIPT_DIR/chomsky-keys" "$ENTRY"
-  printf '  "style.keybindings.show": {"icon":"󰌌","label":"Show current keybindings","action":"%s keys-show"},\n' "$ENTRY"
-  printf '  "style.chomsky": {"icon":"󰸉","label":"Chomsky panel","description":"Open the Chomsky panel (bar chip only)","aliases":["chomsky"],"when":"[[ -f $HOME/.local/state/chomsky/bar-chip ]]","action":"%s panel"}\n' "$ENTRY"
+  printf '  "style.keybindings.show": {"icon":"󰌌","label":"Show current keybindings","action":"%s keys-show"}\n' "$ENTRY"
   printf '  %s\n' "$END"
 }
 

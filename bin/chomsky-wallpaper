@@ -79,13 +79,12 @@ apply_wallpaper() {
     exit 1
   fi
 
+  # omarchy-theme-bg-set is what Omarchy uses for its own background switcher,
+  # so this behaves the same as Style > Background. No notification: the
+  # wallpaper is visible the moment it changes, and cycling through a handful
+  # of images should not leave a stack of toasts behind it.
   omarchy-theme-bg-set "$target"
 
-  local name
-  name="$(basename "$target")"
-  if command -v omarchy-notification-send >/dev/null 2>&1; then
-    omarchy-notification-send -u low "Wallpaper" "$name" -t 2000 >/dev/null 2>&1 || true
-  fi
   echo "Wallpaper set to: $target"
 }
 

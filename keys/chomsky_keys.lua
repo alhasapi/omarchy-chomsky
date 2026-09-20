@@ -111,11 +111,11 @@ local function dusky(dir)
   o.bind("SUPER + SHIFT + K", "Keybindings", "omarchy-menu-keybindings")
   o.bind("SUPER + SHIFT + L", "Toggle workspace layout", "omarchy-hyprland-workspace-layout-toggle")
 
-  -- Wallpapers: Dusky's "next background" (now across the theme and
-  -- ~/Pictures) and, where it used to generate a theme from the wallpaper,
-  -- picking one from the thumbnail grid.
+  -- Wallpapers: next and previous, across the active theme and ~/Pictures.
+  -- (Picking from a grid is in the panel and the Omarchy menu instead, so
+  -- both directions keep a key.)
   o.bind("SUPER + apostrophe", "Next background", chomsky .. " bg-next")
-  o.bind("SUPER + SHIFT + apostrophe", "Pick wallpaper", chomsky .. " wallpaper menu")
+  o.bind("SUPER + SHIFT + apostrophe", "Previous background", chomsky .. " bg-prev")
 
   -- Arrows resize rather than focus, the way Dusky has them. Works on tiled
   -- windows (adjusts the split ratio) and floating ones (moves the edge).

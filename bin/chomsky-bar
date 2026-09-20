@@ -26,7 +26,6 @@ set -euo pipefail
 readonly PLUGIN_ID='alhasapi.chomsky'
 readonly SHELL_JSON="$HOME/.config/omarchy/shell.json"
 readonly SECTION='right'
-readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 err() { echo "chomsky-bar: $*" >&2; }
 
@@ -45,8 +44,6 @@ EOF
 
 # on  -- a Chomsky entry sits in a bar section
 # off -- a Chomsky entry sits in plugins[]
-# This one reads the bar layout, not the chip marker file, because it is the
-# thing that decides both.
 bar_state() {
   [[ -f "$SHELL_JSON" ]] || { echo on; return; }
 
@@ -99,7 +96,7 @@ cmd_off() {
   ' --arg id "$PLUGIN_ID"
 
   echo "Chomsky's chip is off the bar; the plugin is still enabled (menu rows and startup service keep working)."
-  "$SCRIPT_DIR/chomsky" chip off
+  echo "The panel is on the Omarchy menu under Style > Chomsky panel."
   echo "Put it back with: chomsky-bar on"
 }
 
@@ -113,7 +110,6 @@ cmd_on() {
   ' --arg id "$PLUGIN_ID" --arg section "$SECTION"
 
   echo "Chomsky's chip is back on the bar."
-  "$SCRIPT_DIR/chomsky" chip on
 }
 
 case "${1:-status}" in
