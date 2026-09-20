@@ -1,4 +1,10 @@
 #!/bin/bash
+# shellcheck disable=SC2016
+# The single-quoted strings in this file are row *sources*, not commands to run
+# now: every `$(...)` and `%s` in them is there to be evaluated when the menu
+# later runs the row, or when printf fills in a path. Expanding them here would
+# bake the state of the world at install time into a menu that is supposed to
+# report it live -- which is the bug this plugin exists to avoid.
 # chomsky-menu-install: install or remove the Style > Animation / Style >
 # Shader and friends rows in the Omarchy menu
 # (~/.config/omarchy/extensions/omarchy-menu.jsonc).
@@ -43,8 +49,8 @@ STATE="$STATE_DIR/menu-rows"
 
 MODE=auto
 case "${1:-}" in
-  -h|--help)
-    cat <<'EOF'
+  -h | --help)
+    cat << 'EOF'
 Usage: chomsky-menu-install [--enable | --remove]
 
 With no arguments, adds the Chomsky rows to the Omarchy menu if the saved
@@ -55,8 +61,8 @@ state says they are on, and removes them if it says they are off.
 EOF
     exit 0
     ;;
-  --remove|--uninstall) MODE=remove ;;
-  --enable|--install) MODE=enable ;;
+  --remove | --uninstall) MODE=remove ;;
+  --enable | --install) MODE=enable ;;
   "") ;;
   *)
     echo "chomsky-menu-install: unknown option: $1" >&2
@@ -85,7 +91,7 @@ save_menu_rows_state() {
 # can each insert a block and leave duplicate rows behind.
 lock_ext() {
   mkdir -p "$(dirname "$LOCK")"
-  exec {LOCK_FD}>"$LOCK"
+  exec {LOCK_FD}> "$LOCK"
   flock -w 15 "$LOCK_FD" || {
     echo "chomsky-menu-install: another run is holding $LOCK" >&2
     exit 1
@@ -99,7 +105,7 @@ emit_block() {
   # The panel first: it is the plugin's main UI, and it is the one thing here
   # that is not also a bar widget. Summoned through the host so it works with
   # no chip on the bar and opens centered on the focused monitor.
-  printf '  "style.chomsky": {"icon":"󰸉","label":"Chomsky panel","description":"Animations, shaders, keybindings, wallpaper and display in one panel","aliases":["chomsky"],"action":"omarchy-shell shell toggle alhasapi.chomsky"},\n'
+  printf '  "style.chomsky": {"icon":"󰸉","label":"Chomsky panel","description":"Animations, shaders, keybindings, wallpaper and display in one panel","aliases":["chomsky"],"action":"omarchy-shell shell toggle %s"},\n' "$PLUGIN_ID"
   printf '  "style.animation": {"icon":"󰸉","label":"Animation","aliases":["animation","animations"],"description":"Switch or cycle Hyprland animation presets","action":"%s animation","checked":"[ \\"$(%s current 2>/dev/null)\\" != \\"disable\\" ]"},\n' "$ENTRY" "$SCRIPT_DIR/chomsky-anim"
   printf '  "style.shader": {"icon":"󰄄","label":"Shader","checked":"[ \\"$(%s current 2>/dev/null)\\" != \\"off\\" ]"},\n' "$SCRIPT_DIR/chomsky-shader"
   printf '  "style.shader.pick": {"icon":"󰄄","label":"Pick shader...","aliases":["shader","shaders"],"action":"%s shader"},\n' "$ENTRY"
@@ -132,13 +138,13 @@ fix_trailing_comma() {
   close_line=$(grep -n '^}' "$EXT" | tail -n1 | cut -d: -f1) || return 0
   [[ -n "$close_line" ]] || return 0
   prev=$((close_line - 1))
-  while (( prev > 0 )); do
+  while ((prev > 0)); do
     local trimmed
     trimmed=$(sed -n "${prev}p" "$EXT" | sed 's@^[[:space:]]*@@')
     [[ -n $trimmed && ${trimmed:0:1} != "/" ]] && break
     prev=$((prev - 1))
   done
-  (( prev > 0 )) || return 0
+  ((prev > 0)) || return 0
   local last_trimmed
   last_trimmed=$(sed -n "${prev}p" "$EXT" | sed 's@[[:space:]]*$@@')
   if [[ $last_trimmed != "{" && ${last_trimmed: -1} == "," ]]; then
@@ -160,7 +166,7 @@ remove_block() {
   local passes=0
   while grep -qF "$START" "$EXT"; do
     passes=$((passes + 1))
-    if (( passes > 10 )); then
+    if ((passes > 10)); then
       echo "chomsky-menu-install: could not remove every managed block from $EXT" >&2
       return 1
     fi
@@ -199,7 +205,7 @@ if [[ ! -f "$EXT" ]]; then
     echo "{"
     emit_block
     echo "}"
-  } >"$EXT"
+  } > "$EXT"
   exit 0
 fi
 
@@ -209,7 +215,11 @@ fi
 # once the marker comments are dropped.
 validate_rows() {
   local file="$1"
-  if ! { echo "{"; grep -v '^[[:space:]]*//' "$file"; echo "}"; } | jq -e . >/dev/null 2>&1; then
+  if ! {
+    echo "{"
+    grep -v '^[[:space:]]*//' "$file"
+    echo "}"
+  } | jq -e . > /dev/null 2>&1; then
     err "the generated menu rows do not parse; refusing to write them to $EXT"
     err "this is a bug in chomsky-menu-install (quote escaping), not in your config"
     return 1
@@ -244,12 +254,12 @@ fix_trailing_comma
 prev_of_block=$(grep -nF "$START" "$EXT" | head -n1 | cut -d: -f1) || true
 if [[ -n "$prev_of_block" ]]; then
   prev=$((prev_of_block - 1))
-  while (( prev > 0 )); do
+  while ((prev > 0)); do
     trimmed=$(sed -n "${prev}p" "$EXT" | sed 's@^[[:space:]]*@@')
     [[ -n $trimmed && ${trimmed:0:1} != "/" ]] && break
     prev=$((prev - 1))
   done
-  if (( prev > 0 )); then
+  if ((prev > 0)); then
     last_trimmed=$(sed -n "${prev}p" "$EXT" | sed 's@[[:space:]]*$@@')
     if [[ $last_trimmed != "{" && ${last_trimmed: -1} != "," ]]; then
       sed -i "${prev}s/\$/,/" "$EXT"

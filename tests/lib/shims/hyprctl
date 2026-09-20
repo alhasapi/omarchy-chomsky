@@ -1,0 +1,81 @@
+#!/bin/bash
+# A hyprctl that models the one thing the shader code depends on:
+# `decoration:screen_shader` is a runtime value, so a reload drops it and
+# re-applies whatever the toggle directory says. That asymmetry -- a runtime
+# eval being forgotten, a toggle file surviving -- is what the shader tests
+# exist for, so it is modelled rather than stubbed.
+set -uo pipefail
+state="${SHIM_STATE:?hyprctl shim needs SHIM_STATE}"
+mkdir -p "$state"
+printf '%s\n' "$*" >>"$state/hyprctl.calls"
+
+read_live() { [[ -f "$state/screen_shader" ]] && cat "$state/screen_shader" || true; }
+
+case "${1:-}" in
+getoption)
+	case "${2:-}" in
+	decoration:screen_shader)
+		v="$(read_live)"
+		if [[ -n "$v" ]]; then echo "str: $v set: true"; else echo "str: [[EMPTY]] set: false"; fi
+		;;
+	decoration:dim_strength)
+		printf 'float: %s\n' "$(cat "$state/dim_strength" 2>/dev/null || echo 0.15)"
+		;;
+	# Read only as a fallback when no state file exists.
+	general:resize_on_border)
+		printf 'int: %s\n' "$(cat "$state/resize_on_border" 2>/dev/null || echo 0)"
+		;;
+	*)
+		echo "hyprctl shim: unhandled option: ${2:-}" >&2
+		exit 1
+		;;
+	esac
+	;;
+reload)
+	# default/hypr/toggles.lua sources the toggle directory last on every
+	# reload, so the files there win over anything set at runtime.
+	rm -f "$state/screen_shader"
+	for f in "$HOME"/.local/state/omarchy/toggles/hypr/*.lua; do
+		[[ -f "$f" ]] || continue
+		shader="$(sed -n 's/.*screen_shader[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$f" | head -n1)"
+		[[ -n "$shader" ]] && printf '%s' "$shader" >"$state/screen_shader"
+		dim="$(sed -n 's/.*dim_strength[[:space:]]*=[[:space:]]*\([0-9.]*\).*/\1/p' "$f" | head -n1)"
+		[[ -n "$dim" ]] && printf '%s' "$dim" >"$state/dim_strength"
+	done
+	echo "ok"
+	;;
+# A runtime change: applied until the next reload, which is exactly how the
+# old shader implementation managed to lie to the panel.
+eval)
+	body="${2:-}"
+	printf '%s\n' "$body" >>"$state/effects.log"
+	# hl.monitor({ output = "...", ..., transform = N })
+	if [[ "$body" =~ output\ *=\ *\"([^\"]+)\" ]]; then
+		printf '%s' "${BASH_REMATCH[1]}" >"$state/monitor_name"
+	fi
+	if [[ "$body" =~ transform\ *=\ *([0-9]+) ]]; then
+		printf '%s' "${BASH_REMATCH[1]}" >"$state/monitor_transform"
+	fi
+	if [[ "$body" == *'screen_shader = ""'* ]]; then
+		rm -f "$state/screen_shader"
+	elif [[ "$body" =~ screen_shader\ *=\ *\"([^\"]+)\" ]]; then
+		printf '%s' "${BASH_REMATCH[1]}" >"$state/screen_shader"
+	fi
+	echo "ok"
+	;;
+# Log the whole command: the interesting part (which monitor, which
+# transform) is in the later arguments.
+dispatch | keyword)
+	printf '%s\n' "$*" >>"$state/effects.log"
+	echo "ok"
+	;;
+monitors)
+	printf '[{"name":"%s","focused":true,"transform":%s,"width":1920,"height":1080,"refreshRate":60,"x":0,"y":0,"scale":1.6}]\n' \
+		"$(cat "$state/monitor_name" 2>/dev/null || echo "${SHIM_MONITOR:-HDMI-A-2}")" \
+		"$(cat "$state/monitor_transform" 2>/dev/null || echo 0)"
+	;;
+*)
+	echo "hyprctl shim: unhandled invocation: $*" >&2
+	exit 1
+	;;
+esac

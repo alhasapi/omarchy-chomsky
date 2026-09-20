@@ -31,7 +31,7 @@ readonly SECTION='right'
 err() { echo "chomsky-bar: $*" >&2; }
 
 usage() {
-  cat >&2 <<EOF
+  cat >&2 << EOF
 Usage: chomsky-bar [on|off|toggle|status]
 
   off     Move the Chomsky chip's bar entry into shell.json's plugins[] array,
@@ -47,9 +47,12 @@ EOF
 # on  -- a Chomsky entry sits in a bar section
 # off -- a Chomsky entry sits in plugins[]
 bar_state() {
-  [[ -f "$SHELL_JSON" ]] || { echo on; return; }
+  [[ -f "$SHELL_JSON" ]] || {
+    echo on
+    return
+  }
 
-  if jq -e --arg id "$PLUGIN_ID" '[.bar.layout[]? | .[]?] | any(. == $id or (.id? == $id))' "$SHELL_JSON" >/dev/null 2>&1; then
+  if jq -e --arg id "$PLUGIN_ID" '[.bar.layout[]? | .[]?] | any(. == $id or (.id? == $id))' "$SHELL_JSON" > /dev/null 2>&1; then
     echo on
   else
     echo off
@@ -67,13 +70,22 @@ apply_config() {
   local tmp
   tmp="$(mktemp)"
 
+  # Check the input first: the filter below auto-creates .bar.layout when it is
+  # missing, so without this a file that is not a shell.json would be rewritten
+  # into something that looks like one.
+  if ! jq -e '.bar.layout and (.plugins | type == "array")' "$SHELL_JSON" > /dev/null 2>&1; then
+    err "$SHELL_JSON has no bar layout or plugins[] to work with; leaving it alone"
+    rm -f "$tmp"
+    exit 1
+  fi
+
   if ! jq "$@" "$filter" "$SHELL_JSON" > "$tmp"; then
     err "could not rewrite $SHELL_JSON"
     rm -f "$tmp"
     exit 1
   fi
 
-  if ! jq -e '.bar.layout and (.plugins | type == "array")' "$tmp" >/dev/null 2>&1; then
+  if ! jq -e '.bar.layout and (.plugins | type == "array")' "$tmp" > /dev/null 2>&1; then
     err "refusing to write a shell.json without bar.layout / plugins[]"
     rm -f "$tmp"
     exit 1
@@ -85,13 +97,17 @@ apply_config() {
 }
 
 cmd_off() {
-  [[ "$(bar_state)" == "off" ]] && { echo "Chomsky is already off the bar."; return; }
+  [[ "$(bar_state)" == "off" ]] && {
+    echo "Chomsky is already off the bar."
+    return
+  }
 
   # Move whichever entry exists (an object with settings, or a bare id string)
   # into plugins[], then drop it from its bar section.
+  # shellcheck disable=SC2016  # $id/$entry are jq variables, fed with --arg
   apply_config '
     ([.bar.layout[]? | .[]? | select(. == $id or (.id? == $id))][0] // {id: $id}) as $entry
-    | .plugins = ((.plugins // []) | if any(. == $id or (.id? == $id)) then . else . + [{id: $id}] end)
+    | .plugins = ((.plugins // []) | if any(. == $id or (.id? == $id)) then . else . + [$entry] end)
     | .bar.layout = (.bar.layout | with_entries(
         .value |= map(select(. != $id and (.id? != $id)))
       ))
@@ -103,8 +119,12 @@ cmd_off() {
 }
 
 cmd_on() {
-  [[ "$(bar_state)" == "on" ]] && { echo "Chomsky is already on the bar."; return; }
+  [[ "$(bar_state)" == "on" ]] && {
+    echo "Chomsky is already on the bar."
+    return
+  }
 
+  # shellcheck disable=SC2016  # $id/$section are jq variables, fed with --arg
   apply_config '
     ([.plugins // [] | .[] | select(. == $id or (.id? == $id))][0] // {id: $id}) as $entry
     | .plugins = ((.plugins // []) | map(select(. != $id and (.id? != $id))))

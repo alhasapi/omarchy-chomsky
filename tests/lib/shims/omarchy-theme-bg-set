@@ -1,0 +1,8 @@
+#!/bin/bash
+# Records the wallpaper instead of changing it, and updates the symlink the
+# plugin reads back -- without this the tests would repaint the user's desktop.
+set -uo pipefail
+state="${SHIM_STATE:?}"
+printf '%s\n' "${1:-}" >>"$state/bg-set.log"
+mkdir -p "$HOME/.local/state/omarchy/current"
+[[ -n "${1:-}" ]] && ln -sfn "$1" "$HOME/.local/state/omarchy/current/background"

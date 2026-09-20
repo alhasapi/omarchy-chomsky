@@ -7,7 +7,8 @@
 
 set -uo pipefail
 
-readonly BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly BIN_DIR
 
 err() { echo "chomsky: $*" >&2; }
 
@@ -15,22 +16,22 @@ err() { echo "chomsky: $*" >&2; }
 cmd_status() {
   local animation shader shader_on theme background resize_on_border dim_inactive dim_strength keybindings bar_chip
 
-  animation="$("$BIN_DIR/chomsky-anim" current 2>/dev/null || echo '(none)')"
-  shader="$("$BIN_DIR/chomsky-shader" current 2>/dev/null || echo off)"
+  animation="$("$BIN_DIR/chomsky-anim" current 2> /dev/null || echo '(none)')"
+  shader="$("$BIN_DIR/chomsky-shader" current 2> /dev/null || echo off)"
   [[ "$shader" == "off" ]] && shader_on=false || shader_on=true
-  theme="$(omarchy theme current 2>/dev/null || echo '')"
-  background="$(readlink -f "$HOME/.local/state/omarchy/current/background" 2>/dev/null || echo '')"
-  keybindings="$("$BIN_DIR/chomsky-keys" current 2>/dev/null || echo omarchy)"
+  theme="$(omarchy theme current 2> /dev/null || echo '')"
+  background="$(readlink -f "$HOME/.local/state/omarchy/current/background" 2> /dev/null || echo '')"
+  keybindings="$("$BIN_DIR/chomsky-keys" current 2> /dev/null || echo omarchy)"
   # No fallback value: "on" here would claim a chip is on the bar whenever the
   # script could not be run at all, which is exactly the kind of quiet lie the
   # panel is supposed to stop telling. Empty means unknown, treated as off.
-  bar_chip="$("$BIN_DIR/chomsky-bar" status 2>/dev/null || true)"
+  bar_chip="$("$BIN_DIR/chomsky-bar" status 2> /dev/null || true)"
 
   local window_state
-  window_state="$("$BIN_DIR/chomsky-window" current 2>/dev/null || echo off)"
+  window_state="$("$BIN_DIR/chomsky-window" current 2> /dev/null || echo off)"
   [[ "$window_state" == "on" ]] && resize_on_border=true || resize_on_border=false
   dim_inactive="$resize_on_border"
-  dim_strength="$(hyprctl getoption decoration:dim_strength 2>/dev/null | awk -F': ' '/^float:/ {print $2}')"
+  dim_strength="$(hyprctl getoption decoration:dim_strength 2> /dev/null | awk -F': ' '/^float:/ {print $2}')"
   [[ -n "$dim_strength" ]] || dim_strength="0.15"
 
   jq -n \
@@ -50,8 +51,8 @@ cmd_status() {
 # ---- lists, for the panel's dropdowns --------------------------------------
 cmd_animations() {
   local current
-  current="$("$BIN_DIR/chomsky-anim" current 2>/dev/null || echo '')"
-  "$BIN_DIR/chomsky-anim" list 2>/dev/null | while IFS= read -r name; do
+  current="$("$BIN_DIR/chomsky-anim" current 2> /dev/null || echo '')"
+  "$BIN_DIR/chomsky-anim" list 2> /dev/null | while IFS= read -r name; do
     [[ -z "$name" ]] && continue
     jq -n --arg name "$name" --argjson current "$([[ "$name" == "$current" ]] && echo true || echo false)" \
       '{name:$name, current:$current}'
@@ -60,8 +61,8 @@ cmd_animations() {
 
 cmd_shaders() {
   local current
-  current="$("$BIN_DIR/chomsky-shader" current 2>/dev/null || echo off)"
-  "$BIN_DIR/chomsky-shader" list 2>/dev/null | while IFS= read -r name; do
+  current="$("$BIN_DIR/chomsky-shader" current 2> /dev/null || echo off)"
+  "$BIN_DIR/chomsky-shader" list 2> /dev/null | while IFS= read -r name; do
     [[ -z "$name" ]] && continue
     jq -n --arg name "$name" --argjson current "$([[ "$name" == "$current" ]] && echo true || echo false)" \
       '{name:$name, current:$current}'
@@ -73,23 +74,50 @@ case "${1:-}" in
   status) cmd_status ;;
   animations) cmd_animations ;;
   shaders) cmd_shaders ;;
-  anim) shift; exec "$BIN_DIR/chomsky-anim" "$@" ;;
-  shader) shift; exec "$BIN_DIR/chomsky-shader" "$@" ;;
-  window) shift; exec "$BIN_DIR/chomsky-window" "$@" ;;
-  rotate) shift; exec "$BIN_DIR/chomsky-monitor-rotate" "$@" ;;
-  keys) shift; exec "$BIN_DIR/chomsky-keys" "$@" ;;
-  bar) shift; exec "$BIN_DIR/chomsky-bar" "$@" ;;
+  anim)
+    shift
+    exec "$BIN_DIR/chomsky-anim" "$@"
+    ;;
+  shader)
+    shift
+    exec "$BIN_DIR/chomsky-shader" "$@"
+    ;;
+  window)
+    shift
+    exec "$BIN_DIR/chomsky-window" "$@"
+    ;;
+  rotate)
+    shift
+    exec "$BIN_DIR/chomsky-monitor-rotate" "$@"
+    ;;
+  keys)
+    shift
+    exec "$BIN_DIR/chomsky-keys" "$@"
+    ;;
+  bar)
+    shift
+    exec "$BIN_DIR/chomsky-bar" "$@"
+    ;;
   bg-next) exec "$BIN_DIR/chomsky-wallpaper" next ;;
   bg-prev) exec "$BIN_DIR/chomsky-wallpaper" prev ;;
-  wallpaper) shift; exec "$BIN_DIR/chomsky-wallpaper" "$@" ;;
-  menu-install) shift; exec "$BIN_DIR/chomsky-menu-install" "$@" ;;
+  wallpaper)
+    shift
+    exec "$BIN_DIR/chomsky-wallpaper" "$@"
+    ;;
+  menu-install)
+    shift
+    exec "$BIN_DIR/chomsky-menu-install" "$@"
+    ;;
   reload) exec hyprctl reload ;;
   dpms)
     shift
     case "${1:-}" in
       off) hyprctl dispatch dpms off ;;
       on) hyprctl dispatch dpms on ;;
-      *) err "usage: chomsky dpms <on|off>"; exit 1 ;;
+      *)
+        err "usage: chomsky dpms <on|off>"
+        exit 1
+        ;;
     esac
     ;;
   *)

@@ -1,0 +1,2 @@
+#!/bin/bash
+echo "${SHIM_MONITOR:-HDMI-A-2}"

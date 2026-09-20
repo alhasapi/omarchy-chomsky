@@ -1,0 +1,22 @@
+#!/bin/bash
+# The thumbnail-grid front-end. Records what it was asked for, and behaves the
+# way the real one can: it can hand back a pick, be dismissed, or fail before
+# opening anything at all -- the last being the `Argument list too long` case
+# this branch fixed.
+set -uo pipefail
+state="${SHIM_STATE:?omarchy-menu-images shim needs SHIM_STATE}"
+mkdir -p "$state"
+jq -cn --args '{args: $ARGS.positional, total: ([$ARGS.positional[] | length] | add // 0)}' -- "$@" \
+	>>"$state/frontend.calls"
+
+case "${CHOMSKY_TEST_FRONTEND:-cancel}" in
+fail)
+	echo "omarchy-menu-images: Argument list too long" >&2
+	exit 1
+	;;
+pick)
+	printf '%s\n' "${CHOMSKY_TEST_PICK:?pick needs CHOMSKY_TEST_PICK}"
+	exit 0
+	;;
+*) exit 0 ;;
+esac

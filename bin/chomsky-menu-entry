@@ -20,8 +20,8 @@ START='// >>> chomsky-menu >>>'
 END='// <<< chomsky-menu <<<'
 
 notify() {
-  command -v omarchy-notification-send >/dev/null 2>&1 || return 0
-  omarchy-notification-send -u "$1" "$2" "$3" -t "$4" >/dev/null 2>&1 || true
+  command -v omarchy-notification-send > /dev/null 2>&1 || return 0
+  omarchy-notification-send -u "$1" "$2" "$3" -t "$4" > /dev/null 2>&1 || true
 }
 
 # Take the managed block out, and reconcile the comma on whatever entry now
@@ -45,7 +45,7 @@ remove_block() {
   local passes=0
   while grep -qF "$START" "$EXT"; do
     passes=$((passes + 1))
-    (( passes <= 10 )) || return 0
+    ((passes <= 10)) || return 0
     sed -i "\@^[[:space:]]*${start_esc}[[:space:]]*\$@,\@^[[:space:]]*${end_esc}[[:space:]]*\$@d" "$EXT"
   done
 
@@ -53,13 +53,13 @@ remove_block() {
   close_line=$(grep -n '^}' "$EXT" | tail -n1 | cut -d: -f1) || return 0
   [[ -n "$close_line" ]] || return 0
   prev=$((close_line - 1))
-  while (( prev > 0 )); do
+  while ((prev > 0)); do
     local trimmed
     trimmed=$(sed -n "${prev}p" "$EXT" | sed 's@^[[:space:]]*@@')
     [[ -n $trimmed && ${trimmed:0:1} != "/" ]] && break
     prev=$((prev - 1))
   done
-  (( prev > 0 )) || return 0
+  ((prev > 0)) || return 0
   local last_trimmed
   last_trimmed=$(sed -n "${prev}p" "$EXT" | sed 's@[[:space:]]*$@@')
   if [[ $last_trimmed != "{" && ${last_trimmed: -1} == "," ]]; then
@@ -70,7 +70,7 @@ remove_block() {
 MODE="${1:-}"
 
 case "$MODE" in
-  animation|shader|shader-off|shader-next|shader-prev|window-toggle|window-dim|rotate-cw|rotate-ccw|dpms|bg-next|bg-prev|wallpaper-pick|keys-dusky|keys-omarchy|keys-show)
+  animation | shader | shader-off | shader-next | shader-prev | window-toggle | window-dim | rotate-cw | rotate-ccw | dpms | bg-next | bg-prev | wallpaper-pick | keys-dusky | keys-omarchy | keys-show)
     if [[ -x "$PLUGIN_BIN/chomsky" ]]; then
       case "$MODE" in
         animation) exec "$PLUGIN_BIN/chomsky-anim" menu ;;
@@ -81,7 +81,7 @@ case "$MODE" in
         window-toggle)
           "$PLUGIN_BIN/chomsky-window" toggle
           notify low "Window Behavior" \
-            "Border resize & dimming: $("$PLUGIN_BIN/chomsky-window" current 2>/dev/null || echo '?')" 2500
+            "Border resize & dimming: $("$PLUGIN_BIN/chomsky-window" current 2> /dev/null || echo '?')" 2500
           exit 0
           ;;
         window-dim)

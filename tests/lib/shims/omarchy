@@ -1,0 +1,22 @@
+#!/bin/bash
+# Only the subcommands these scripts actually call. Anything else fails loudly
+# rather than pretending to have worked.
+set -uo pipefail
+state="${SHIM_STATE:?omarchy shim needs SHIM_STATE}"
+printf '%s\n' "$*" >>"$state/omarchy.calls"
+
+case "${1:-}" in
+theme)
+	case "${2:-}" in
+	current) echo "${SHIM_THEME:-TestTheme}" ;;
+	*)
+		echo "omarchy shim: unhandled: $*" >&2
+		exit 1
+		;;
+	esac
+	;;
+*)
+	echo "omarchy shim: unhandled: $*" >&2
+	exit 1
+	;;
+esac

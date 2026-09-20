@@ -21,14 +21,14 @@ PICKER_DONE_FILE=""
 
 # The same extensions Omarchy's own `omarchy-theme-bg-next` walks, so what this
 # script calls a wallpaper matches what the rest of Omarchy does.
-readonly IMAGE_MATCH=( \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' \) )
+readonly IMAGE_MATCH=(\( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' \))
 
 err() { echo "chomsky-wallpaper: $*" >&2; }
 
 current_wallpaper() {
   local bg_link="$STATE_CURRENT/background"
   if [[ -L "$bg_link" ]]; then
-    readlink -f "$bg_link" 2>/dev/null || readlink "$bg_link" 2>/dev/null || echo ""
+    readlink -f "$bg_link" 2> /dev/null || readlink "$bg_link" 2> /dev/null || echo ""
   else
     echo ""
   fi
@@ -60,20 +60,20 @@ wallpaper_dirs() {
     while IFS= read -r sub; do
       [[ -n "$sub" ]] || continue
       if find -L "$sub" -maxdepth 1 -type f "${IMAGE_MATCH[@]}" \
-           ! -iname '*screenshot*' -print -quit 2>/dev/null | grep -q .; then
+        ! -iname '*screenshot*' -print -quit 2> /dev/null | grep -q .; then
         printf '%s\n' "$sub"
       fi
-    done < <(find -L "$root" -mindepth 1 -maxdepth 1 -type d 2>/dev/null)
+    done < <(find -L "$root" -mindepth 1 -maxdepth 1 -type d 2> /dev/null)
   done < <(search_roots) | sort -u
 }
 
 list_wallpapers() {
   local -a dirs=()
   mapfile -t dirs < <(wallpaper_dirs)
-  (( ${#dirs[@]} > 0 )) || return 0
+  ((${#dirs[@]} > 0)) || return 0
 
   find -L "${dirs[@]}" -maxdepth 1 -type f "${IMAGE_MATCH[@]}" \
-    ! -iname '*screenshot*' -print0 2>/dev/null | sort -z | tr '\0' '\n'
+    ! -iname '*screenshot*' -print0 2> /dev/null | sort -z | tr '\0' '\n'
 }
 
 apply_wallpaper() {
@@ -97,7 +97,7 @@ cycle_wallpaper() {
   mapfile -t wallpapers < <(list_wallpapers)
   local total="${#wallpapers[@]}"
 
-  if (( total == 0 )); then
+  if ((total == 0)); then
     err "no wallpapers found in the active theme or $PICTURES_DIR"
     exit 1
   fi
@@ -116,16 +116,16 @@ cycle_wallpaper() {
 
   local new_idx
   if [[ "$direction" == "prev" ]]; then
-    if (( idx <= 0 )); then
-      new_idx=$(( total - 1 ))
+    if ((idx <= 0)); then
+      new_idx=$((total - 1))
     else
-      new_idx=$(( idx - 1 ))
+      new_idx=$((idx - 1))
     fi
   else
-    if (( idx == -1 )); then
+    if ((idx == -1)); then
       new_idx=0
     else
-      new_idx=$(( (idx + 1) % total ))
+      new_idx=$(((idx + 1) % total))
     fi
   fi
 
@@ -152,9 +152,11 @@ cycle_wallpaper() {
 picker_rows_too_long() {
   local bytes=0 path
   while IFS= read -r path; do
-    bytes=$(( bytes + 2 * ${#path} + 80 ))
+    bytes=$((bytes + 2 * ${#path} + 80))
   done < <(list_wallpapers)
-  (( bytes / 3 * 4 > 120 * 1024 ))
+  # Multiply before dividing: the other order loses the precision that decides
+  # whether the row list would overrun the kernel's limit.
+  ((bytes * 4 / 3 > 120 * 1024))
 }
 
 # The overlay's own contract, as the shell host exposes it: dirs (newline
@@ -166,7 +168,7 @@ picker_from_dirs() {
   local selected="$1"
   shift
 
-  if ! command -v omarchy-shell >/dev/null 2>&1; then
+  if ! command -v omarchy-shell > /dev/null 2>&1; then
     err "omarchy-shell is not on PATH (it ships with Omarchy 4)"
     exit 1
   fi
@@ -193,7 +195,7 @@ picker_from_dirs() {
 
   [[ -s "$PICKER_SELECTION_FILE" ]] || return 0
   local picked
-  picked="$(<"$PICKER_SELECTION_FILE")"
+  picked="$(< "$PICKER_SELECTION_FILE")"
   rm -f "$PICKER_SELECTION_FILE" "$PICKER_DONE_FILE"
   apply_wallpaper "$picked"
 }
@@ -202,7 +204,7 @@ menu_select() {
   local -a dirs=()
   mapfile -t dirs < <(wallpaper_dirs)
 
-  if (( ${#dirs[@]} == 0 )); then
+  if ((${#dirs[@]} == 0)); then
     err "no wallpaper directory found (looked in the active theme and $PICTURES_DIR)"
     exit 1
   fi
@@ -210,7 +212,7 @@ menu_select() {
   local selected choice
   selected="$(current_wallpaper)"
 
-  if command -v omarchy-menu-images >/dev/null 2>&1 && ! picker_rows_too_long; then
+  if command -v omarchy-menu-images > /dev/null 2>&1 && ! picker_rows_too_long; then
     # A non-zero exit means the front-end could not even open the picker; the
     # empty string with a zero exit is the user closing it without choosing.
     if choice="$(omarchy-menu-images --selected "$selected" --filterable "${dirs[@]}")"; then
@@ -230,7 +232,10 @@ main() {
     next) cycle_wallpaper next ;;
     prev) cycle_wallpaper prev ;;
     set)
-      [[ -n "${2:-}" ]] || { err "set requires an image path"; exit 1; }
+      [[ -n "${2:-}" ]] || {
+        err "set requires an image path"
+        exit 1
+      }
       apply_wallpaper "$2"
       ;;
     menu) menu_select ;;

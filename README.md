@@ -315,6 +315,57 @@ Nothing announces a background change: Omarchy notifies when a *theme* switch
 found no background (`No background was found for theme`), which is a different
 path, and the plugin stays quiet.
 
+## Tests
+
+```bash
+tests/run.sh                 # the whole suite: 269 checks, about 9 seconds
+tests/run.sh shader menu     # only groups whose name matches
+tests/run.sh --list          # what would run
+tests/run.sh --keep          # keep the sandboxes for inspection
+bats tests/run.bats          # the same groups through bats (TAP, --filter)
+```
+
+Two rules keep the suite safe to run in a live session:
+
+**Every test gets a throwaway `HOME`.** These scripts write into the user's own
+config -- `shell.json`, the Omarchy menu extension, the Hyprland toggle
+directory -- so a test using the real one would be a bug in itself. At the end
+of a run the real files are hashed against a baseline taken at the start, and a
+difference fails the run. That guard is itself tested (`t_safety.sh` breaks a
+throwaway home and requires it to be noticed): a guard that has never been seen
+to fail is not a guard.
+
+**Every external command is a shim on `PATH`.** Nothing here may reload the real
+Hyprland, change the real wallpaper or switch the real keybindings. The shims do
+more than stub: `hyprctl` models the asymmetry the shader code depends on (a
+reload re-reads the toggle directory and drops runtime values), so the original
+"panel shows a shader that is not painted" bug can be reproduced in a test. A
+shim asked for something it does not model fails loudly rather than quietly
+succeeding.
+
+| Group | What it holds |
+| --- | --- |
+| `t_safety.sh` | the shims shadow the real commands, and the real-home guard works |
+| `t_lint.sh` | `shellcheck` and `shfmt` over every script (skipped if not installed) |
+| `t_invariants.sh` | executable bits, manifest, Lua compiles, and the cross-file contracts: QML subcommands exist, watched state files are ones a script writes, menu rows point at scripts that exist |
+| `t_shader.sh` | applied shader survives a reload, `current` reads Hyprland rather than a record, `restore` converges both ways |
+| `t_anim.sh`, `t_window.sh` | presets and window behaviour, including "no toggle file means nothing is active" |
+| `t_keys.sh` | runs the real Lua under a stub `hl` API: no mode may bind a key it does not clear first |
+| `t_bar.sh` | moving the chip preserves every other bar entry and the widget's own settings, and refuses a `shell.json` it cannot parse |
+| `t_wallpaper.sh` | cycling, plus the picker's two routes and the 128 KiB argument it must never build |
+| `t_menu.sh` | install is idempotent, ten concurrent installs leave one block, removal is clean, an unparseable row is refused |
+| `t_status.sh` | every field the panel reads, each following its state rather than a memory of it |
+| `t_upstream.sh` | the Omarchy interfaces this leans on, so an update that moves one fails here instead of quietly breaking a feature |
+| `t_clis.sh` | rotation, DPMS, reload, and the `~/.local/bin` wrappers |
+
+Adding one: create `tests/t_<name>.sh`, source `tests/lib/common.sh`, call
+`start_test`, use the `assert_*` helpers, call `finish_test`, and add a
+`run_group t_<name>` line to `tests/run.bats` (a test there checks you did).
+
+Not automated, deliberately: how the panel *looks*. Its geometry is checked (the
+content fits the card, nothing is truncated), but optical alignment and visual
+weight are not something a test can judge -- see *Not covered* below.
+
 ## Not covered
 
 Per-app window-sizing and floating rules from the original Dusky port are

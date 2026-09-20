@@ -12,7 +12,8 @@
 
 set -euo pipefail
 
-readonly PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+readonly PLUGIN_DIR
 readonly SHADER_DIRS=("$PLUGIN_DIR/shaders" "/usr/share/hyprshade/shaders")
 readonly STATE_DIR="$HOME/.local/state/chomsky"
 readonly TOGGLE_DIR="$HOME/.local/state/omarchy/toggles/hypr"
@@ -26,7 +27,7 @@ readonly TOGGLE_FILE="$TOGGLE_DIR/chomsky-shader.lua"
 err() { echo "chomsky-shader: $*" >&2; }
 
 reload_hyprland() {
-  command -v hyprctl &>/dev/null && hyprctl reload &>/dev/null || true
+  command -v hyprctl &> /dev/null && hyprctl reload &> /dev/null || true
 }
 
 list_shaders() {
@@ -62,8 +63,8 @@ resolve_shader_path() {
 # disagree, and they disagree every time something reloads the config.
 current_shader() {
   local out
-  out="$(hyprctl getoption decoration:screen_shader 2>/dev/null | sed -n 's/^str:[[:space:]]*//p' | head -n1)"
-  out="${out%% set:*}"   # hyprctl appends " set: false/true" to the value
+  out="$(hyprctl getoption decoration:screen_shader 2> /dev/null | sed -n 's/^str:[[:space:]]*//p' | head -n1)"
+  out="${out%% set:*}" # hyprctl appends " set: false/true" to the value
   if [[ -z "$out" || "$out" == "[[EMPTY]]"* ]]; then
     echo "off"
     return
@@ -75,9 +76,15 @@ current_shader() {
 # What the plugin last asked for, read back from the toggle file itself.
 desired_shader() {
   local path
-  [[ -f "$TOGGLE_FILE" ]] || { echo "off"; return; }
+  [[ -f "$TOGGLE_FILE" ]] || {
+    echo "off"
+    return
+  }
   path="$(sed -n 's/.*screen_shader[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$TOGGLE_FILE" | head -n1)"
-  [[ -z "$path" ]] && { echo "off"; return; }
+  [[ -z "$path" ]] && {
+    echo "off"
+    return
+  }
   path="$(basename "$path")"
   printf '%s\n' "${path%.glsl}"
 }
@@ -144,7 +151,7 @@ toggle() {
   cur="$(current_shader)"
   if [[ "$cur" == "off" ]]; then
     mapfile -t shaders < <(list_shaders)
-    if (( ${#shaders[@]} == 0 )); then
+    if ((${#shaders[@]} == 0)); then
       err "no shaders found"
       exit 1
     fi
@@ -158,7 +165,7 @@ cycle() {
   local direction="${1:-next}"
   mapfile -t shaders < <(list_shaders)
   local total="${#shaders[@]}"
-  if (( total == 0 )); then
+  if ((total == 0)); then
     err "no shaders found"
     exit 1
   fi
@@ -174,9 +181,9 @@ cycle() {
 
   local new_idx
   if [[ "$direction" == "prev" ]]; then
-    if (( idx <= 0 )); then new_idx=$(( total - 1 )); else new_idx=$(( idx - 1 )); fi
+    if ((idx <= 0)); then new_idx=$((total - 1)); else new_idx=$((idx - 1)); fi
   else
-    if (( idx == -1 )); then new_idx=0; else new_idx=$(( (idx + 1) % total )); fi
+    if ((idx == -1)); then new_idx=0; else new_idx=$(((idx + 1) % total)); fi
   fi
 
   apply_shader "${shaders[$new_idx]}"
@@ -194,7 +201,7 @@ menu() {
 }
 
 usage() {
-  cat >&2 <<EOF
+  cat >&2 << EOF
 Usage: chomsky-shader <command> [args]
 
 Commands:
@@ -216,7 +223,10 @@ main() {
   case "$cmd" in
     list) list_shaders ;;
     set)
-      [[ -n "${2:-}" ]] || { err "set requires a shader name"; exit 1; }
+      [[ -n "${2:-}" ]] || {
+        err "set requires a shader name"
+        exit 1
+      }
       apply_shader "$2"
       ;;
     off) apply_off ;;
