@@ -12,6 +12,7 @@
 #
 #   bats tests/run.bats
 #   bats --filter shader tests/run.bats
+#   CHOMSKY_WITH_QML=1 bats tests/run.bats    # also the panel group
 
 setup_file() {
   export SUITE_TMP="$(mktemp -d "${TMPDIR:-/tmp}/chomsky-bats.XXXXXX")"
@@ -46,6 +47,13 @@ run_group() {
 @test "status: the JSON the panel reads" { run_group t_status; }
 @test "upstream: the Omarchy interfaces this depends on" { run_group t_upstream; }
 @test "clis: rotation, dpms, reload, PATH wrappers" { run_group t_clis; }
+
+@test "qml: the panel renders (opt-in: CHOMSKY_WITH_QML=1)" {
+  if [[ -z "${CHOMSKY_WITH_QML:-}" ]]; then
+    skip "needs a Wayland session and shows the panel for a second: run with CHOMSKY_WITH_QML=1"
+  fi
+  run_group t_qml
+}
 
 @test "every group file has a test here" {
   missing=()

@@ -66,6 +66,9 @@ assert_file() {
   if [[ -f "$1" ]]; then pass "$2"; else fail "$2" "no such file: $1"; fi
 }
 
+assert_exists() { # exists what
+  if [[ -e "$1" ]]; then pass "$2"; else fail "$2" "no such path: $1"; fi
+}
 assert_no_file() {
   if [[ ! -e "$1" ]]; then pass "$2"; else fail "$2" "file should not exist: $1"; fi
 }

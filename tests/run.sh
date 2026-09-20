@@ -3,6 +3,7 @@
 #
 #   tests/run.sh              every test
 #   tests/run.sh shader menu  only tests whose name matches
+#   tests/run.sh --with-qml   also render the panel (needs a Wayland session)
 #   tests/run.sh --list       what would run
 #   --keep                    keep the sandboxes (or CHOMSKY_TEST_KEEP=1)
 #
@@ -21,10 +22,12 @@ source "$TESTS_DIR/lib/common.sh"
 
 PATTERNS=()
 LIST_ONLY=0
+WITH_QML=${CHOMSKY_WITH_QML:-0}
 for arg in "$@"; do
   case "$arg" in
     --keep) KEEP_TMP=1 ;;
     --list) LIST_ONLY=1 ;;
+    --with-qml) WITH_QML=1 ;;
     -h | --help)
       sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'
       exit 0
@@ -46,13 +49,26 @@ export HYPRLAND_INSTANCE_SIGNATURE="chomsky-tests"
 
 mapfile -t ALL_TESTS < <(find "$TESTS_DIR" -maxdepth 1 -name 't_*.sh' -printf '%f\n' | sort)
 
+# Groups that need something the default run does not: a compositor, in this
+# case. Reported by --list so that they are discoverable, skipped otherwise.
+opt_in() { [[ "$1" == "t_qml.sh" ]]; }
+
 if ((LIST_ONLY)); then
-  printf '%s\n' "${ALL_TESTS[@]}"
+  for t in "${ALL_TESTS[@]}"; do
+    if opt_in "$t" && ((WITH_QML == 0)); then
+      printf '%s  (opt-in: --with-qml)\n' "$t"
+    else
+      printf '%s\n' "$t"
+    fi
+  done
   exit 0
 fi
 
 selected=()
 for t in "${ALL_TESTS[@]}"; do
+  if opt_in "$t" && ((WITH_QML == 0)); then
+    continue
+  fi
   if ((${#PATTERNS[@]} == 0)); then
     selected+=("$t")
     continue

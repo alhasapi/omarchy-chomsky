@@ -318,8 +318,9 @@ path, and the plugin stays quiet.
 ## Tests
 
 ```bash
-tests/run.sh                 # the whole suite: 269 checks, about 9 seconds
+tests/run.sh                 # the whole suite, a few seconds, no session needed
 tests/run.sh shader menu     # only groups whose name matches
+tests/run.sh --with-qml      # also render the panel (needs a Wayland session)
 tests/run.sh --list          # what would run
 tests/run.sh --keep          # keep the sandboxes for inspection
 bats tests/run.bats          # the same groups through bats (TAP, --filter)
@@ -357,6 +358,14 @@ succeeding.
 | `t_status.sh` | every field the panel reads, each following its state rather than a memory of it |
 | `t_upstream.sh` | the Omarchy interfaces this leans on, so an update that moves one fails here instead of quietly breaking a feature |
 | `t_clis.sh` | rotation, DPMS, reload, and the `~/.local/bin` wrappers |
+| `t_qml.sh` | the panel, rendered: the card fits its content, nothing is truncated, and every cursor index lights a control. Opt-in (`--with-qml`) |
+
+One group is opt-in. `--with-qml` renders the real panel through quickshell, so
+it needs a Wayland session -- a layer surface takes its size from the compositor,
+which is where the card's height comes from. It shows the panel on the focused
+monitor for about a second each run. The assertions are relative for that reason:
+the theme is live, so what it checks is that the content ends where the card
+does, not that it is 613 pixels tall.
 
 Adding one: create `tests/t_<name>.sh`, source `tests/lib/common.sh`, call
 `start_test`, use the `assert_*` helpers, call `finish_test`, and add a
