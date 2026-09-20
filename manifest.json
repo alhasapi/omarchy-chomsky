@@ -6,28 +6,26 @@
   "author": "alhasapi",
   "license": "MIT",
   "homepage": "https://github.com/alhasapi/omarchy-chomsky",
-  "description": "Unified manager for a Dusky-derived look & feel: animation presets, screen shaders, border-resize/dim window behavior, monitor rotation, and wallpaper-driven themes -- all bundled, no other config edits required.",
-  "kinds": ["bar-widget"],
-  "entryPoints": { "barWidget": "BarWidget.qml" },
+  "description": "Unified manager for a Dusky-derived look & feel: animation presets, screen shaders, border-resize/dim window behavior, monitor rotation, wallpaper cycling, and a switch between Omarchy's keybindings and Dusky's -- all bundled, no other config edits required. Driven from its own rows in the Omarchy menu, so the bar chip is optional.",
+  "kinds": ["bar-widget", "service", "panel"],
+  "keepLoaded": true,
+  "entryPoints": { "barWidget": "BarWidget.qml", "service": "Service.qml", "panel": "Panel.qml" },
   "barWidget": {
     "displayName": "Chomsky",
-    "description": "Animations, shaders, window behavior, monitor rotation, and wallpaper themes in one panel",
+    "description": "Shows the current animation and shader; opens the Chomsky panel",
     "category": "System",
     "allowMultiple": false,
     "defaultSection": "right",
     "defaults": {
-      "dimStrength": 0.15
+      "menuRows": true
     },
     "schema": [
       {
-        "key": "dimStrength",
-        "type": "number",
-        "label": "Default dim strength",
-        "description": "Inactive-window dim applied when Window behavior is first turned on",
-        "min": 0,
-        "max": 0.7,
-        "step": 0.05,
-        "defaultValue": 0.15
+        "key": "menuRows",
+        "type": "boolean",
+        "label": "Omarchy menu rows",
+        "description": "Add Style > Animation / Shader / Window Behavior / Keybindings / Display / Wallpaper rows for this plugin to the Omarchy menu. Removed from the menu when this is off.",
+        "defaultValue": true
       }
     ]
   }

@@ -1,0 +1,17 @@
+# Shell formatting is enforced by `shfmt` and linted by `shellcheck`; both are
+# run by tests/run.sh when installed, so these settings are the single source of
+# truth for the style. `space_redirects` keeps `> file` readable rather than
+# `>file`, and `switch_case_indent` matches the indented case labels used here.
+root = true
+
+[*.sh]
+indent_style = space
+indent_size = 2
+switch_case_indent = true
+space_redirects = true
+
+[bin/*]
+indent_style = space
+indent_size = 2
+switch_case_indent = true
+space_redirects = true

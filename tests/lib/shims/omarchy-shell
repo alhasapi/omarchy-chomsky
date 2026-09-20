@@ -1,0 +1,36 @@
+#!/bin/bash
+# Stands in for Omarchy's IPC CLI. It records every call as one JSON array per
+# line -- so a payload containing newlines stays unambiguous -- and simulates
+# the image picker, including the two ways it ends: a pick, or a dismissal with
+# no selection.
+set -uo pipefail
+state="${SHIM_STATE:?omarchy-shell shim needs SHIM_STATE}"
+mkdir -p "$state"
+
+calls="$state/omarchy-shell.calls"
+jq -cn --args '$ARGS.positional' -- "$@" >>"$calls"
+jq -cn --args '{args: $ARGS.positional, largest: ([$ARGS.positional[] | length] | max // 0), total: ([$ARGS.positional[] | length] | add // 0)}' -- "$@" \
+	>>"$state/omarchy-shell.sizes"
+
+if [[ "${1:-}" == "image-selector" && "${2:-}" == "open" ]]; then
+	if [[ "${CHOMSKY_TEST_PICKER_FAIL:-0}" == "1" ]]; then
+		echo "unknown"
+		exit 0
+	fi
+	selection_file="${6:-}"
+	done_file="${7:-}"
+	if [[ -n "${CHOMSKY_TEST_PICK:-}" && -n "$selection_file" ]]; then
+		printf '%s\n' "$CHOMSKY_TEST_PICK" >"$selection_file"
+	fi
+	[[ -n "$done_file" ]] && : >"$done_file"
+	echo "ok"
+	exit 0
+fi
+
+if [[ "${1:-}" == "shell" && "${2:-}" == "ping" ]]; then
+	echo "pong"
+	exit 0
+fi
+
+printf '%s\n' "$*" >>"$state/shell.log"
+echo "ok"

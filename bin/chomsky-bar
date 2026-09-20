@@ -1,0 +1,145 @@
+#!/bin/bash
+# chomsky-bar: put Chomsky's chip on the bar, or take it off and keep the
+# plugin running.
+#
+# The plugin is driven from the Omarchy menu (Style > Animation / Shader /
+# Window Behavior / Display / Wallpaper / Keybindings), so the chip is optional
+# -- and on a crowded bar, dropping it is the point.
+#
+# Which is not the same as removing the widget from the bar by hand: a
+# third-party bar widget counts as enabled only when it is either placed in
+# `bar.layout` or listed in the top-level `plugins` array (see
+# PluginRegistry.findEntryLocation). Just deleting the layout entry switches
+# the whole plugin off -- no menu rows maintained, no startup service. So `off`
+# moves the entry from one place to the other, and `on` moves it back.
+#
+# shell.json is the shell's own file: it rewrites it whenever a setting changes,
+# so this writes atomically (temp file + rename), validates before replacing,
+# and keeps a timestamped backup.
+#
+#     chomsky-bar              # print the current state
+#     chomsky-bar off          # chip off the bar, plugin still enabled
+#     chomsky-bar on           # chip back on the bar
+#     chomsky-bar toggle       # whichever of the two applies now
+
+set -euo pipefail
+
+readonly PLUGIN_ID='alhasapi.chomsky'
+readonly SHELL_JSON="$HOME/.config/omarchy/shell.json"
+readonly SECTION='right'
+
+err() { echo "chomsky-bar: $*" >&2; }
+
+usage() {
+  cat >&2 << EOF
+Usage: chomsky-bar [on|off|toggle|status]
+
+  off     Move the Chomsky chip's bar entry into shell.json's plugins[] array,
+          so the plugin stays enabled (menu rows, startup service) with no
+          space taken on the bar.
+  on      Move it back onto the bar's $SECTION section.
+  toggle  Whatever the current state is not.
+  status  Print "on" or "off".
+EOF
+  exit 1
+}
+
+# on  -- a Chomsky entry sits in a bar section
+# off -- a Chomsky entry sits in plugins[]
+bar_state() {
+  [[ -f "$SHELL_JSON" ]] || {
+    echo on
+    return
+  }
+
+  if jq -e --arg id "$PLUGIN_ID" '[.bar.layout[]? | .[]?] | any(. == $id or (.id? == $id))' "$SHELL_JSON" > /dev/null 2>&1; then
+    echo on
+  else
+    echo off
+  fi
+}
+
+# Rewrite shell.json from a jq filter, keeping every other part intact.
+# Refuses to install a file that does not parse or that has lost the bar
+# configuration, rather than leave the shell with a broken config.
+#
+# $1 is the filter; anything after it is passed straight to jq (--arg ...).
+apply_config() {
+  local filter="$1"
+  shift
+  local tmp
+  tmp="$(mktemp)"
+
+  # Check the input first: the filter below auto-creates .bar.layout when it is
+  # missing, so without this a file that is not a shell.json would be rewritten
+  # into something that looks like one.
+  if ! jq -e '.bar.layout and (.plugins | type == "array")' "$SHELL_JSON" > /dev/null 2>&1; then
+    err "$SHELL_JSON has no bar layout or plugins[] to work with; leaving it alone"
+    rm -f "$tmp"
+    exit 1
+  fi
+
+  if ! jq "$@" "$filter" "$SHELL_JSON" > "$tmp"; then
+    err "could not rewrite $SHELL_JSON"
+    rm -f "$tmp"
+    exit 1
+  fi
+
+  if ! jq -e '.bar.layout and (.plugins | type == "array")' "$tmp" > /dev/null 2>&1; then
+    err "refusing to write a shell.json without bar.layout / plugins[]"
+    rm -f "$tmp"
+    exit 1
+  fi
+
+  cp -p "$SHELL_JSON" "$SHELL_JSON.bak.$(date +%s)"
+  chmod 600 "$tmp"
+  mv -f "$tmp" "$SHELL_JSON"
+}
+
+cmd_off() {
+  [[ "$(bar_state)" == "off" ]] && {
+    echo "Chomsky is already off the bar."
+    return
+  }
+
+  # Move whichever entry exists (an object with settings, or a bare id string)
+  # into plugins[], then drop it from its bar section.
+  # shellcheck disable=SC2016  # $id/$entry are jq variables, fed with --arg
+  apply_config '
+    ([.bar.layout[]? | .[]? | select(. == $id or (.id? == $id))][0] // {id: $id}) as $entry
+    | .plugins = ((.plugins // []) | if any(. == $id or (.id? == $id)) then . else . + [$entry] end)
+    | .bar.layout = (.bar.layout | with_entries(
+        .value |= map(select(. != $id and (.id? != $id)))
+      ))
+  ' --arg id "$PLUGIN_ID"
+
+  echo "Chomsky's chip is off the bar; the plugin is still enabled (menu rows and startup service keep working)."
+  echo "The panel is on the Omarchy menu under Style > Chomsky panel."
+  echo "Put it back with: chomsky-bar on"
+}
+
+cmd_on() {
+  [[ "$(bar_state)" == "on" ]] && {
+    echo "Chomsky is already on the bar."
+    return
+  }
+
+  # shellcheck disable=SC2016  # $id/$section are jq variables, fed with --arg
+  apply_config '
+    ([.plugins // [] | .[] | select(. == $id or (.id? == $id))][0] // {id: $id}) as $entry
+    | .plugins = ((.plugins // []) | map(select(. != $id and (.id? != $id))))
+    | .bar.layout[$section] = ((.bar.layout[$section] // []) | if any(. == $id or (.id? == $id)) then . else . + [$entry] end)
+  ' --arg id "$PLUGIN_ID" --arg section "$SECTION"
+
+  echo "Chomsky's chip is back on the bar."
+}
+
+case "${1:-status}" in
+  status | "") bar_state ;;
+  off) cmd_off ;;
+  on) cmd_on ;;
+  toggle)
+    if [[ "$(bar_state)" == "on" ]]; then cmd_off; else cmd_on; fi
+    ;;
+  *) usage ;;
+esac

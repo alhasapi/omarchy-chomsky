@@ -1,6 +1,13 @@
 #!/bin/bash
+# shellcheck disable=SC2016
+# The single-quoted strings in this file are row *sources*, not commands to run
+# now: every `$(...)` and `%s` in them is there to be evaluated when the menu
+# later runs the row, or when printf fills in a path. Expanding them here would
+# bake the state of the world at install time into a menu that is supposed to
+# report it live -- which is the bug this plugin exists to avoid.
 # chomsky-menu-install: install or remove the Style > Animation / Style >
-# Shader rows in the Omarchy menu (~/.config/omarchy/extensions/omarchy-menu.jsonc).
+# Shader and friends rows in the Omarchy menu
+# (~/.config/omarchy/extensions/omarchy-menu.jsonc).
 #
 # The rows are wrapped in a single marker-delimited block. Removal uses sed's
 # own line-range address (`/start/,/end/d`) rather than manual line-number
@@ -12,29 +19,50 @@
 # into the same extensions directory, so the rows keep working -- and can
 # clean themselves up -- even after the plugin is disabled or removed.
 #
-# Install is idempotent: it always removes any existing block first, then
-# inserts a fresh one, so re-running (e.g. after `omarchy plugin update`)
-# just replaces it in place.
+# Run with no arguments it *syncs*: it reads the saved "Omarchy menu rows"
+# state and makes the file match. That is what BarWidget.qml and Service.qml
+# call on startup and whenever settings change. The decision lives here rather
+# than in the QML because the settings object is not reliably populated when
+# the widget's startup hook runs, and because the shell can fire the hook more
+# than once -- several concurrent runs are normal, so the whole read-modify-
+# write happens under a lock and is idempotent. Calling it concurrently
+# therefore converges instead of leaving two blocks behind.
 #
-# `--remove` takes the block back out without reinstalling.
+# --enable and --remove record "on"/"off" in
+# ~/.local/state/chomsky/menu-rows and apply it. That file, not the widget
+# setting, is the saved state: the widget setting is a knob that calls these
+# (so the rows can be turned on and off from the panel or with
+# `omarchy bar set <id> menuRows false --json`), and it lives on the bar entry,
+# which is exactly the thing a user may have moved off the bar to save space.
 
 set -euo pipefail
 
+PLUGIN_ID='alhasapi.chomsky'
 EXT="${OMARCHY_MENU_EXTENSION:-$HOME/.config/omarchy/extensions/omarchy-menu.jsonc}"
 EXT_DIR="$(dirname "$EXT")"
 ENTRY="$EXT_DIR/chomsky-menu-entry"
 START='// >>> chomsky-menu >>>'
 END='// <<< chomsky-menu <<<'
+LOCK="$HOME/.local/state/chomsky/menu.lock"
+STATE_DIR="$HOME/.local/state/chomsky"
+STATE="$STATE_DIR/menu-rows"
 
-MODE=install
+MODE=auto
 case "${1:-}" in
-  -h|--help)
-    echo "Usage: chomsky-menu-install [--remove]"
+  -h | --help)
+    cat << 'EOF'
+Usage: chomsky-menu-install [--enable | --remove]
+
+With no arguments, adds the Chomsky rows to the Omarchy menu if the saved
+state says they are on, and removes them if it says they are off.
+
+  --enable   turn the rows on (and remember it)
+  --remove   turn the rows off (and remember it)
+EOF
     exit 0
     ;;
-  --remove|--uninstall)
-    MODE=remove
-    ;;
+  --remove | --uninstall) MODE=remove ;;
+  --enable | --install) MODE=enable ;;
   "") ;;
   *)
     echo "chomsky-menu-install: unknown option: $1" >&2
@@ -43,17 +71,62 @@ case "${1:-}" in
 esac
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-mkdir -p "$EXT_DIR"
-install -m 755 "$SCRIPT_DIR/chomsky-menu-entry" "$ENTRY"
+
+# The saved state of the "Omarchy menu rows" toggle: `on` unless it has been
+# turned off. Deliberately not read from shell.json -- see the header.
+menu_rows_state() {
+  local saved=""
+  [[ -f "$STATE" ]] && saved="$(< "$STATE")"
+
+  [[ "$saved" == "off" ]] && echo off || echo on
+}
+
+save_menu_rows_state() {
+  mkdir -p "$STATE_DIR"
+  printf '%s\n' "$1" > "$STATE"
+}
+
+# Several runs at once are expected (the shell can fire its startup hook more
+# than once), so serialise the whole read-modify-write. Without this, two runs
+# can each insert a block and leave duplicate rows behind.
+lock_ext() {
+  mkdir -p "$(dirname "$LOCK")"
+  exec {LOCK_FD}> "$LOCK"
+  flock -w 15 "$LOCK_FD" || {
+    echo "chomsky-menu-install: another run is holding $LOCK" >&2
+    exit 1
+  }
+}
 
 # Emit the managed block to stdout, one row per line, no trailing comma on
 # the last row (the caller/fixup pass reconciles commas around it).
 emit_block() {
   printf '  %s\n' "$START"
+  # The panel first: it is the plugin's main UI, and it is the one thing here
+  # that is not also a bar widget. Summoned through the host so it works with
+  # no chip on the bar and opens centered on the focused monitor.
+  printf '  "style.chomsky": {"icon":"󰸉","label":"Chomsky panel","description":"Animations, shaders, keybindings, wallpaper and display in one panel","aliases":["chomsky"],"action":"omarchy-shell shell toggle %s"},\n' "$PLUGIN_ID"
   printf '  "style.animation": {"icon":"󰸉","label":"Animation","aliases":["animation","animations"],"description":"Switch or cycle Hyprland animation presets","action":"%s animation","checked":"[ \\"$(%s current 2>/dev/null)\\" != \\"disable\\" ]"},\n' "$ENTRY" "$SCRIPT_DIR/chomsky-anim"
   printf '  "style.shader": {"icon":"󰄄","label":"Shader","checked":"[ \\"$(%s current 2>/dev/null)\\" != \\"off\\" ]"},\n' "$SCRIPT_DIR/chomsky-shader"
   printf '  "style.shader.pick": {"icon":"󰄄","label":"Pick shader...","aliases":["shader","shaders"],"action":"%s shader"},\n' "$ENTRY"
-  printf '  "style.shader.off": {"icon":"","label":"Turn off shader","when":"[ \\"$(%s current 2>/dev/null)\\" != \\"off\\" ]","action":"%s shader-off"}\n' "$SCRIPT_DIR/chomsky-shader" "$ENTRY"
+  printf '  "style.shader.off": {"icon":"","label":"Turn off shader","when":"[ \\"$(%s current 2>/dev/null)\\" != \\"off\\" ]","action":"%s shader-off"},\n' "$SCRIPT_DIR/chomsky-shader" "$ENTRY"
+  printf '  "style.shader.next": {"icon":"󰒭","label":"Next shader","action":"%s shader-next"},\n' "$ENTRY"
+  printf '  "style.shader.prev": {"icon":"󰒮","label":"Previous shader","action":"%s shader-prev"},\n' "$ENTRY"
+  printf '  "style.window": {"icon":"","label":"Window Behavior","checked":"[ \\"$(%s current 2>/dev/null)\\" == \\"on\\" ]"},\n' "$SCRIPT_DIR/chomsky-window"
+  printf '  "style.window.toggle": {"icon":"󰘦","label":"Toggle border resize & dim","action":"%s window-toggle"},\n' "$ENTRY"
+  printf '  "style.window.dim": {"icon":"󰃟","label":"Set dim strength...","action":"%s window-dim"},\n' "$ENTRY"
+  printf '  "style.display": {"icon":"󰍹","label":"Display Controls"},\n'
+  printf '  "style.display.rotate-cw": {"icon":"󰑮","label":"Rotate 90° Clockwise","action":"%s rotate-cw"},\n' "$ENTRY"
+  printf '  "style.display.rotate-ccw": {"icon":"󰑯","label":"Rotate 90° Counter-Clockwise","action":"%s rotate-ccw"},\n' "$ENTRY"
+  printf '  "style.display.dpms": {"icon":"󰌶","label":"Turn screen off (DPMS)","action":"%s dpms"},\n' "$ENTRY"
+  printf '  "style.wallpaper": {"icon":"","label":"Wallpaper"},\n'
+  printf '  "style.wallpaper.next": {"icon":"󰒭","label":"Next background","description":"Cycle the active theme and ~/Pictures","action":"%s bg-next"},\n' "$ENTRY"
+  printf '  "style.wallpaper.prev": {"icon":"󰒮","label":"Previous background","description":"Cycle the active theme and ~/Pictures","action":"%s bg-prev"},\n' "$ENTRY"
+  printf '  "style.wallpaper.pick": {"icon":"","label":"Pick wallpaper...","action":"%s wallpaper-pick"},\n' "$ENTRY"
+  printf '  "style.keybindings": {"icon":"󰌌","label":"Keybindings","checked":"[ \\"$(%s current 2>/dev/null)\\" == \\"dusky\\" ]"},\n' "$SCRIPT_DIR/chomsky-keys"
+  printf '  "style.keybindings.dusky": {"icon":"󰌌","label":"Dusky keybindings","description":"Vim navigation, arrows resize, pickers and DPMS","checked":"[ \\"$(%s current 2>/dev/null)\\" == \\"dusky\\" ]","action":"%s keys-dusky"},\n' "$SCRIPT_DIR/chomsky-keys" "$ENTRY"
+  printf '  "style.keybindings.omarchy": {"icon":"󰌌","label":"Omarchy keybindings","description":"Omarchy default bindings","checked":"[ \\"$(%s current 2>/dev/null)\\" == \\"omarchy\\" ]","action":"%s keys-omarchy"},\n' "$SCRIPT_DIR/chomsky-keys" "$ENTRY"
+  printf '  "style.keybindings.show": {"icon":"󰌌","label":"Show current keybindings","action":"%s keys-show"}\n' "$ENTRY"
   printf '  %s\n' "$END"
 }
 
@@ -65,13 +138,13 @@ fix_trailing_comma() {
   close_line=$(grep -n '^}' "$EXT" | tail -n1 | cut -d: -f1) || return 0
   [[ -n "$close_line" ]] || return 0
   prev=$((close_line - 1))
-  while (( prev > 0 )); do
+  while ((prev > 0)); do
     local trimmed
     trimmed=$(sed -n "${prev}p" "$EXT" | sed 's@^[[:space:]]*@@')
     [[ -n $trimmed && ${trimmed:0:1} != "/" ]] && break
     prev=$((prev - 1))
   done
-  (( prev > 0 )) || return 0
+  ((prev > 0)) || return 0
   local last_trimmed
   last_trimmed=$(sed -n "${prev}p" "$EXT" | sed 's@[[:space:]]*$@@')
   if [[ $last_trimmed != "{" && ${last_trimmed: -1} == "," ]]; then
@@ -82,17 +155,47 @@ fix_trailing_comma() {
 remove_block() {
   [[ -f "$EXT" ]] || return 0
   grep -qF "$START" "$EXT" || return 0
+
   local start_esc end_esc
   start_esc=$(printf '%s' "$START" | sed 's/[.[\*^$/]/\\&/g')
   end_esc=$(printf '%s' "$END" | sed 's/[.[\*^$/]/\\&/g')
-  sed -i "\@^[[:space:]]*${start_esc}[[:space:]]*\$@,\@^[[:space:]]*${end_esc}[[:space:]]*\$@d" "$EXT"
+
+  # One pass per block: an earlier bug could leave duplicates behind, and a
+  # run that is interrupted between insert and cleanup can too. Nothing
+  # outside the markers is ever touched, so repeating is safe.
+  local passes=0
+  while grep -qF "$START" "$EXT"; do
+    passes=$((passes + 1))
+    if ((passes > 10)); then
+      echo "chomsky-menu-install: could not remove every managed block from $EXT" >&2
+      return 1
+    fi
+    sed -i "\@^[[:space:]]*${start_esc}[[:space:]]*\$@,\@^[[:space:]]*${end_esc}[[:space:]]*\$@d" "$EXT"
+  done
+
   fix_trailing_comma
 }
 
-if [[ "$MODE" == remove ]]; then
+lock_ext
+
+if [[ $MODE == auto ]]; then
+  [[ $(menu_rows_state) == on ]] && MODE=enable || MODE=remove
+fi
+
+if [[ $MODE == remove ]]; then
+  save_menu_rows_state off
   remove_block
+  # The copied entry script has nothing left to dispatch once the rows are
+  # gone, so take it with them rather than leaving an orphan in the user's
+  # extensions directory.
+  rm -f "$ENTRY"
   exit 0
 fi
+
+save_menu_rows_state on
+
+mkdir -p "$EXT_DIR"
+install -m 755 "$SCRIPT_DIR/chomsky-menu-entry" "$ENTRY"
 
 # Idempotent: always start from a clean slate.
 remove_block
@@ -102,9 +205,26 @@ if [[ ! -f "$EXT" ]]; then
     echo "{"
     emit_block
     echo "}"
-  } >"$EXT"
+  } > "$EXT"
   exit 0
 fi
+
+# The rows are generated strings holding quoted shell commands, so one missing
+# escape produces a file that does not parse -- and the failure would land in
+# the user's menu, not here. Check the block on its own first: it is plain JSON
+# once the marker comments are dropped.
+validate_rows() {
+  local file="$1"
+  if ! {
+    echo "{"
+    grep -v '^[[:space:]]*//' "$file"
+    echo "}"
+  } | jq -e . > /dev/null 2>&1; then
+    err "the generated menu rows do not parse; refusing to write them to $EXT"
+    err "this is a bug in chomsky-menu-install (quote escaping), not in your config"
+    return 1
+  fi
+}
 
 close_line=$(grep -n '^}' "$EXT" | tail -n 1 | cut -d: -f1) || true
 if [[ -z $close_line ]]; then
@@ -116,8 +236,15 @@ if [[ -z $close_line ]]; then
 fi
 
 tmp="$(mktemp)"
+rows="$(mktemp)"
 sed -n "1,$((close_line - 1))p" "$EXT" > "$tmp"
-emit_block >> "$tmp"
+emit_block > "$rows"
+if ! validate_rows "$rows"; then
+  rm -f "$rows" "$tmp"
+  exit 1
+fi
+cat "$rows" >> "$tmp"
+rm -f "$rows"
 sed -n "${close_line},\$p" "$EXT" >> "$tmp"
 mv -f "$tmp" "$EXT"
 
@@ -127,12 +254,12 @@ fix_trailing_comma
 prev_of_block=$(grep -nF "$START" "$EXT" | head -n1 | cut -d: -f1) || true
 if [[ -n "$prev_of_block" ]]; then
   prev=$((prev_of_block - 1))
-  while (( prev > 0 )); do
+  while ((prev > 0)); do
     trimmed=$(sed -n "${prev}p" "$EXT" | sed 's@^[[:space:]]*@@')
     [[ -n $trimmed && ${trimmed:0:1} != "/" ]] && break
     prev=$((prev - 1))
   done
-  if (( prev > 0 )); then
+  if ((prev > 0)); then
     last_trimmed=$(sed -n "${prev}p" "$EXT" | sed 's@[[:space:]]*$@@')
     if [[ $last_trimmed != "{" && ${last_trimmed: -1} != "," ]]; then
       sed -i "${prev}s/\$/,/" "$EXT"

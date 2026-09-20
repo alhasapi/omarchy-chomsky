@@ -12,7 +12,8 @@
 
 set -euo pipefail
 
-readonly PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+readonly PLUGIN_DIR
 readonly ANIM_DIR="$PLUGIN_DIR/animations"
 readonly TOGGLE_DIR="$HOME/.local/state/omarchy/toggles/hypr"
 readonly TOGGLE_FILE="$TOGGLE_DIR/chomsky-animation.lua"
@@ -22,7 +23,7 @@ readonly STATE_FILE="$STATE_DIR/animation"
 err() { echo "chomsky-anim: $*" >&2; }
 
 reload_hyprland() {
-  command -v hyprctl &>/dev/null && hyprctl reload &>/dev/null || true
+  command -v hyprctl &> /dev/null && hyprctl reload &> /dev/null || true
 }
 
 list_presets() {
@@ -34,6 +35,13 @@ list_presets() {
 }
 
 current_preset() {
+  # A preset is in force only while its toggle file is: that is the file
+  # Hyprland sources on every reload. Reporting the recorded name alone would
+  # claim a preset was active even after Omarchy cleared that directory.
+  [[ -f "$TOGGLE_FILE" ]] || {
+    echo "(none)"
+    return
+  }
   if [[ -f "$STATE_FILE" ]]; then
     cat "$STATE_FILE"
   else
@@ -76,7 +84,7 @@ next_preset() {
   local direction="${1:-next}"
   mapfile -t presets < <(list_presets)
   local total="${#presets[@]}"
-  if (( total == 0 )); then
+  if ((total == 0)); then
     err "no presets found in $ANIM_DIR"
     exit 1
   fi
@@ -92,9 +100,9 @@ next_preset() {
 
   local new_idx
   if [[ "$direction" == "prev" ]]; then
-    if (( idx <= 0 )); then new_idx=$(( total - 1 )); else new_idx=$(( idx - 1 )); fi
+    if ((idx <= 0)); then new_idx=$((total - 1)); else new_idx=$((idx - 1)); fi
   else
-    if (( idx == -1 )); then new_idx=0; else new_idx=$(( (idx + 1) % total )); fi
+    if ((idx == -1)); then new_idx=0; else new_idx=$(((idx + 1) % total)); fi
   fi
 
   apply_preset "${presets[$new_idx]}"
@@ -108,7 +116,7 @@ menu() {
 }
 
 usage() {
-  cat >&2 <<EOF
+  cat >&2 << EOF
 Usage: chomsky-anim <command> [args]
 
 Commands:
@@ -128,7 +136,10 @@ main() {
   case "$cmd" in
     list) list_presets ;;
     set)
-      [[ -n "${2:-}" ]] || { err "set requires a preset name"; exit 1; }
+      [[ -n "${2:-}" ]] || {
+        err "set requires a preset name"
+        exit 1
+      }
       apply_preset "$2"
       ;;
     current) current_preset ;;

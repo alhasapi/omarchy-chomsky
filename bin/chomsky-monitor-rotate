@@ -34,13 +34,13 @@ if [[ -z "${CURRENT:-}" ]]; then
 fi
 
 if [[ "$DIRECTION" == "cw" ]]; then
-  NEW=$(( (CURRENT % 4 + 1) % 4 ))
+  NEW=$(((CURRENT % 4 + 1) % 4))
 else
-  NEW=$(( (CURRENT % 4 + 3) % 4 ))
+  NEW=$(((CURRENT % 4 + 3) % 4))
 fi
 
 MODE="${WIDTH}x${HEIGHT}@${REFRESH}"
 POSITION="${X}x${Y}"
 
-hyprctl eval "hl.monitor({ output = \"$MONITOR\", mode = \"$MODE\", position = \"$POSITION\", scale = $SCALE, transform = $NEW })" >/dev/null
+hyprctl eval "hl.monitor({ output = \"$MONITOR\", mode = \"$MODE\", position = \"$POSITION\", scale = $SCALE, transform = $NEW })" > /dev/null
 echo "Rotated $MONITOR to transform $NEW"

@@ -25,7 +25,7 @@ err() { echo "chomsky-window: $*" >&2; }
 # hyprctl getoption reports booleans as either "bool: true"/"bool: false" or,
 # for some options, "int: 1"/"int: 0" -- handle both.
 hypr_option_true() {
-  hyprctl getoption "$1" 2>/dev/null | grep -qE '^(bool: true|int: 1)$'
+  hyprctl getoption "$1" 2> /dev/null | grep -qE '^(bool: true|int: 1)$'
 }
 
 current_state() {
@@ -46,7 +46,7 @@ write_flag() {
   trap 'rm -f "$tmp"' EXIT
 
   if [[ "$enabled" == "on" ]]; then
-    cat > "$tmp" <<EOF
+    cat > "$tmp" << EOF
 -- Written by chomsky-window. Full Dusky-style mouse/window behavior, not
 -- just a diff, so it works the same on a machine with no other overrides.
 hl.config({
@@ -69,7 +69,7 @@ hl.config({
 })
 EOF
   else
-    cat > "$tmp" <<'EOF'
+    cat > "$tmp" << 'EOF'
 -- Written by chomsky-window. Omarchy's own defaults, explicit rather than
 -- relying on the file's absence, so a stale flag can never half-apply.
 hl.config({
@@ -98,7 +98,7 @@ EOF
 apply() {
   local enabled="$1" dim_strength="${2:-$DEFAULT_DIM_STRENGTH}"
   write_flag "$enabled" "$dim_strength"
-  hyprctl reload >/dev/null
+  hyprctl reload > /dev/null
   echo "Window behavior: $enabled"
 }
 
@@ -114,7 +114,7 @@ toggle() {
 }
 
 usage() {
-  cat >&2 <<EOF
+  cat >&2 << EOF
 Usage: chomsky-window <command> [args]
 
 Commands:
