@@ -70,7 +70,7 @@ remove_block() {
 MODE="${1:-}"
 
 case "$MODE" in
-  animation|shader|shader-off|shader-next|shader-prev|window-toggle|window-dim|rotate-cw|rotate-ccw|dpms|bg-next|bg-prev|wallpaper-pick|keys-dusky|keys-omarchy|keys-show)
+  animation|shader|shader-off|shader-next|shader-prev|window-toggle|window-dim|rotate-cw|rotate-ccw|dpms|bg-next|bg-prev|wallpaper-pick|keys-dusky|keys-omarchy|keys-show|bar-chip)
     if [[ -x "$PLUGIN_BIN/chomsky" ]]; then
       case "$MODE" in
         animation) exec "$PLUGIN_BIN/chomsky-anim" menu ;;
@@ -103,6 +103,7 @@ case "$MODE" in
         keys-dusky) exec "$PLUGIN_BIN/chomsky-keys" dusky ;;
         keys-omarchy) exec "$PLUGIN_BIN/chomsky-keys" omarchy ;;
         keys-show) exec omarchy-menu-keybindings ;;
+        bar-chip) exec "$PLUGIN_BIN/chomsky-bar" toggle ;;
       esac
     fi
 
@@ -116,7 +117,7 @@ case "$MODE" in
     remove_block
     ;;
   *)
-    echo "Usage: chomsky-menu-entry <animation|shader|shader-off|shader-next|shader-prev|window-toggle|window-dim|rotate-cw|rotate-ccw|dpms|bg-next|bg-prev|wallpaper-pick|keys-dusky|keys-omarchy|keys-show|--remove>" >&2
+    echo "Usage: chomsky-menu-entry <animation|shader|shader-off|shader-next|shader-prev|window-toggle|window-dim|rotate-cw|rotate-ccw|dpms|bg-next|bg-prev|wallpaper-pick|keys-dusky|keys-omarchy|keys-show|bar-chip|--remove>" >&2
     exit 1
     ;;
 esac

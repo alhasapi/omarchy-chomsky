@@ -5,15 +5,19 @@
 #
 # Everything is applied through Omarchy's own `omarchy-theme-bg-set`, which
 # symlinks ~/.local/state/omarchy/current/background and tells the running
-# shell to repaint. Picking reuses Omarchy's own thumbnail-grid image picker
-# (`omarchy-menu-images`), so a wallpaper is chosen by preview and returned as
-# an exact path rather than as a display string.
+# shell to repaint. Picking reuses Omarchy's own thumbnail-grid image picker,
+# so a wallpaper is chosen by preview and returned as an exact path rather than
+# as a display string.
 
 set -euo pipefail
 
 readonly STATE_CURRENT="$HOME/.local/state/omarchy/current"
 readonly USER_CONFIG="$HOME/.config/omarchy"
 readonly PICTURES_DIR="$HOME/Pictures"
+
+# The picker's finished/choice files, kept at file scope for the EXIT trap.
+PICKER_SELECTION_FILE=""
+PICKER_DONE_FILE=""
 
 # The same extensions Omarchy's own `omarchy-theme-bg-next` walks, so what this
 # script calls a wallpaper matches what the rest of Omarchy does.
@@ -128,6 +132,72 @@ cycle_wallpaper() {
   apply_wallpaper "${wallpapers[$new_idx]}"
 }
 
+# --- The picker ------------------------------------------------------------
+#
+# Two ways in, because Omarchy's front-end alone cannot always do it.
+#
+# `omarchy-menu-images` hands the picker its entire image list base64-encoded in
+# one command-line argument, and Linux caps a single argument at 128 KiB. With
+# enough wallpapers that limit is reached -- this machine's ~/Pictures alone
+# holds 1121 images, which is a ~128 KiB argument -- and the picker fails with
+# "Argument list too long" instead of opening. So: use the front-end while the
+# list fits (it resolves thumbnails up front and caches the list, which makes
+# reopening instant), and otherwise drive the image-picker overlay directly with
+# the *directories*, letting it enumerate them itself (its own list.sh, which
+# has no size limit at all).
+
+# Would handing the picker the whole row list overrun that per-argument limit?
+# A rough estimate is all this needs to be: it only chooses between two ways
+# that both work, so being wrong costs a few seconds rather than an answer.
+picker_rows_too_long() {
+  local bytes=0 path
+  while IFS= read -r path; do
+    bytes=$(( bytes + 2 * ${#path} + 80 ))
+  done < <(list_wallpapers)
+  (( bytes / 3 * 4 > 120 * 1024 ))
+}
+
+# The overlay's own contract, as the shell host exposes it: dirs (newline
+# separated), then rows (empty -- we want it to enumerate), the image to
+# highlight, where to write the choice, which file to create when finished, and
+# two display flags. It blocks until that file appears, exactly like
+# omarchy-menu-images, and creates it empty when the picker is dismissed.
+picker_from_dirs() {
+  local selected="$1"
+  shift
+
+  if ! command -v omarchy-shell >/dev/null 2>&1; then
+    err "omarchy-shell is not on PATH (it ships with Omarchy 4)"
+    exit 1
+  fi
+
+  # File-scope names on purpose: the EXIT trap below runs after this function
+  # has returned, and `local` names are unbound by then (which under `set -u`
+  # makes the trap itself fail, leaking the files and the exit status).
+  local answer
+  PICKER_SELECTION_FILE="$(mktemp)"
+  PICKER_DONE_FILE="$(mktemp)"
+  rm -f "$PICKER_DONE_FILE"
+  trap 'rm -f "$PICKER_SELECTION_FILE" "$PICKER_DONE_FILE"' EXIT
+
+  answer="$(omarchy-shell image-selector open \
+    "$(printf '%s\n' "$@")" "" "$selected" "$PICKER_SELECTION_FILE" "$PICKER_DONE_FILE" "false" "true")" || true
+  if [[ "$answer" != "ok" ]]; then
+    err "the image picker did not open${answer:+ ($answer)}"
+    exit 1
+  fi
+
+  while [[ ! -e "$PICKER_DONE_FILE" ]]; do
+    sleep 0.05
+  done
+
+  [[ -s "$PICKER_SELECTION_FILE" ]] || return 0
+  local picked
+  picked="$(<"$PICKER_SELECTION_FILE")"
+  rm -f "$PICKER_SELECTION_FILE" "$PICKER_DONE_FILE"
+  apply_wallpaper "$picked"
+}
+
 menu_select() {
   local -a dirs=()
   mapfile -t dirs < <(wallpaper_dirs)
@@ -137,33 +207,19 @@ menu_select() {
     exit 1
   fi
 
-  if ! command -v omarchy-menu-images >/dev/null 2>&1; then
-    err "omarchy-menu-images is not on PATH (it ships with Omarchy 4)"
-    exit 1
+  local selected choice
+  selected="$(current_wallpaper)"
+
+  if command -v omarchy-menu-images >/dev/null 2>&1 && ! picker_rows_too_long; then
+    # A non-zero exit means the front-end could not even open the picker; the
+    # empty string with a zero exit is the user closing it without choosing.
+    if choice="$(omarchy-menu-images --selected "$selected" --filterable "${dirs[@]}")"; then
+      [[ -n "$choice" ]] && apply_wallpaper "$choice"
+      return 0
+    fi
   fi
 
-  # --selected highlights the active wallpaper; --filterable adds a search
-  # field, which matters once ~/Pictures is in the list.
-  local choice
-  choice="$(omarchy-menu-images --selected "$(current_wallpaper)" --filterable "${dirs[@]}")" || exit 0
-  [[ -n "$choice" ]] || exit 0
-
-  apply_wallpaper "$choice"
-}
-
-usage() {
-  cat >&2 <<EOF
-Usage: chomsky-wallpaper <command> [args]
-
-Commands:
-  list            List every discovered wallpaper (active theme + ~/Pictures)
-  current         Print the active wallpaper path
-  next            Cycle to the next wallpaper
-  prev            Cycle to the previous wallpaper
-  set <path>      Apply an explicit wallpaper image
-  menu            Pick a wallpaper from the thumbnail grid
-EOF
-  exit 1
+  picker_from_dirs "$selected" "${dirs[@]}"
 }
 
 main() {

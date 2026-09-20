@@ -13,7 +13,7 @@ err() { echo "chomsky: $*" >&2; }
 
 # ---- status: one line of JSON describing everything the panel shows -------
 cmd_status() {
-  local animation shader shader_on theme background resize_on_border dim_inactive dim_strength keybindings
+  local animation shader shader_on theme background resize_on_border dim_inactive dim_strength keybindings bar_chip
 
   animation="$("$BIN_DIR/chomsky-anim" current 2>/dev/null || echo '(none)')"
   shader="$("$BIN_DIR/chomsky-shader" current 2>/dev/null || echo off)"
@@ -21,6 +21,10 @@ cmd_status() {
   theme="$(omarchy theme current 2>/dev/null || echo '')"
   background="$(readlink -f "$HOME/.local/state/omarchy/current/background" 2>/dev/null || echo '')"
   keybindings="$("$BIN_DIR/chomsky-keys" current 2>/dev/null || echo omarchy)"
+  # No fallback value: "on" here would claim a chip is on the bar whenever the
+  # script could not be run at all, which is exactly the kind of quiet lie the
+  # panel is supposed to stop telling. Empty means unknown, treated as off.
+  bar_chip="$("$BIN_DIR/chomsky-bar" status 2>/dev/null || true)"
 
   local window_state
   window_state="$("$BIN_DIR/chomsky-window" current 2>/dev/null || echo off)"
@@ -39,7 +43,8 @@ cmd_status() {
     --argjson dimInactive "$dim_inactive" \
     --argjson dimStrength "$dim_strength" \
     --arg keybindings "$keybindings" \
-    '{animation:$animation, shader:$shader, shaderOn:$shaderOn, theme:$theme, background:$background, resizeOnBorder:$resizeOnBorder, dimInactive:$dimInactive, dimStrength:$dimStrength, keybindings:$keybindings}'
+    --arg barChip "$bar_chip" \
+    '{animation:$animation, shader:$shader, shaderOn:$shaderOn, theme:$theme, background:$background, resizeOnBorder:$resizeOnBorder, dimInactive:$dimInactive, dimStrength:$dimStrength, keybindings:$keybindings, barChip:$barChip}'
 }
 
 # ---- lists, for the panel's dropdowns --------------------------------------
@@ -73,6 +78,7 @@ case "${1:-}" in
   window) shift; exec "$BIN_DIR/chomsky-window" "$@" ;;
   rotate) shift; exec "$BIN_DIR/chomsky-monitor-rotate" "$@" ;;
   keys) shift; exec "$BIN_DIR/chomsky-keys" "$@" ;;
+  bar) shift; exec "$BIN_DIR/chomsky-bar" "$@" ;;
   bg-next) exec "$BIN_DIR/chomsky-wallpaper" next ;;
   bg-prev) exec "$BIN_DIR/chomsky-wallpaper" prev ;;
   wallpaper) shift; exec "$BIN_DIR/chomsky-wallpaper" "$@" ;;
@@ -87,7 +93,7 @@ case "${1:-}" in
     esac
     ;;
   *)
-    echo "Usage: chomsky <status|animations|shaders|anim|shader|window|keys|rotate|bg-next|bg-prev|wallpaper|menu-install|reload|dpms> ..." >&2
+    echo "Usage: chomsky <status|animations|shaders|anim|shader|window|keys|bar|rotate|bg-next|bg-prev|wallpaper|menu-install|reload|dpms> ..." >&2
     exit 1
     ;;
 esac

@@ -20,6 +20,7 @@
 #     chomsky-bar              # print the current state
 #     chomsky-bar off          # chip off the bar, plugin still enabled
 #     chomsky-bar on           # chip back on the bar
+#     chomsky-bar toggle       # whichever of the two applies now
 
 set -euo pipefail
 
@@ -31,12 +32,13 @@ err() { echo "chomsky-bar: $*" >&2; }
 
 usage() {
   cat >&2 <<EOF
-Usage: chomsky-bar [on|off|status]
+Usage: chomsky-bar [on|off|toggle|status]
 
   off     Move the Chomsky chip's bar entry into shell.json's plugins[] array,
           so the plugin stays enabled (menu rows, startup service) with no
           space taken on the bar.
   on      Move it back onto the bar's $SECTION section.
+  toggle  Whatever the current state is not.
   status  Print "on" or "off".
 EOF
   exit 1
@@ -116,5 +118,8 @@ case "${1:-status}" in
   status | "") bar_state ;;
   off) cmd_off ;;
   on) cmd_on ;;
+  toggle)
+    if [[ "$(bar_state)" == "on" ]]; then cmd_off; else cmd_on; fi
+    ;;
   *) usage ;;
 esac

@@ -100,6 +100,10 @@ emit_block() {
   # that is not also a bar widget. Summoned through the host so it works with
   # no chip on the bar and opens centered on the focused monitor.
   printf '  "style.chomsky": {"icon":"󰸉","label":"Chomsky panel","description":"Animations, shaders, keybindings, wallpaper and display in one panel","aliases":["chomsky"],"action":"omarchy-shell shell toggle alhasapi.chomsky"},\n'
+  # Sits next to the panel row because it is about the plugin's own UI: the
+  # chip is the one part of Chomsky that takes bar space, and it is off by
+  # default (the plugin works without it), so offer the way back on.
+  printf '  "style.chomsky-bar": {"icon":"󰍜","label":"Chomsky bar chip","description":"Show the Chomsky chip on the bar","checked":"[ \\\"$(%s status 2>/dev/null)\\\" == \\\"on\\\" ]","action":"%s bar-chip"},\n' "$SCRIPT_DIR/chomsky-bar" "$ENTRY"
   printf '  "style.animation": {"icon":"󰸉","label":"Animation","aliases":["animation","animations"],"description":"Switch or cycle Hyprland animation presets","action":"%s animation","checked":"[ \\"$(%s current 2>/dev/null)\\" != \\"disable\\" ]"},\n' "$ENTRY" "$SCRIPT_DIR/chomsky-anim"
   printf '  "style.shader": {"icon":"󰄄","label":"Shader","checked":"[ \\"$(%s current 2>/dev/null)\\" != \\"off\\" ]"},\n' "$SCRIPT_DIR/chomsky-shader"
   printf '  "style.shader.pick": {"icon":"󰄄","label":"Pick shader...","aliases":["shader","shaders"],"action":"%s shader"},\n' "$ENTRY"
@@ -203,6 +207,19 @@ if [[ ! -f "$EXT" ]]; then
   exit 0
 fi
 
+# The rows are generated strings holding quoted shell commands, so one missing
+# escape produces a file that does not parse -- and the failure would land in
+# the user's menu, not here. Check the block on its own first: it is plain JSON
+# once the marker comments are dropped.
+validate_rows() {
+  local file="$1"
+  if ! { echo "{"; grep -v '^[[:space:]]*//' "$file"; echo "}"; } | jq -e . >/dev/null 2>&1; then
+    err "the generated menu rows do not parse; refusing to write them to $EXT"
+    err "this is a bug in chomsky-menu-install (quote escaping), not in your config"
+    return 1
+  fi
+}
+
 close_line=$(grep -n '^}' "$EXT" | tail -n 1 | cut -d: -f1) || true
 if [[ -z $close_line ]]; then
   # No line consisting of just "}" found -- e.g. a hand-written one-liner
@@ -213,8 +230,15 @@ if [[ -z $close_line ]]; then
 fi
 
 tmp="$(mktemp)"
+rows="$(mktemp)"
 sed -n "1,$((close_line - 1))p" "$EXT" > "$tmp"
-emit_block >> "$tmp"
+emit_block > "$rows"
+if ! validate_rows "$rows"; then
+  rm -f "$rows" "$tmp"
+  exit 1
+fi
+cat "$rows" >> "$tmp"
+rm -f "$rows"
 sed -n "${close_line},\$p" "$EXT" >> "$tmp"
 mv -f "$tmp" "$EXT"
 

@@ -48,6 +48,7 @@ Item {
   readonly property bool resizeOnBorder: service && service.resizeOnBorder === true
   readonly property real dimStrength: service && typeof service.dimStrength === "number" ? service.dimStrength : 0.15
   readonly property string keybindings: service && service.keybindings === "dusky" ? "dusky" : "omarchy"
+  readonly property bool barChip: !service || service.barChip !== "off"
 
   property var animationList: []
   property var shaderList: []
@@ -61,7 +62,10 @@ Item {
   property var borderSpec: Border.surfaceSpec("menu", "border", borderColor, Math.max(1, Style.space(2)))
   property color scrim: Color.menu.scrim
   readonly property int cornerRadius: Style.cornerRadius
-  property int contentMargin: Style.spacing.panelPadding
+  // A little more than Omarchy's own panels use: the last row here is a
+  // bordered button, whose border would otherwise sit as close to the card's
+  // edge as bare text does, which reads as cramped.
+  property int contentMargin: Style.space(22)
   property int contentSpacing: Style.space(8)
 
   // Height is fitted to the content, with the rest of the screen as margin --
@@ -69,7 +73,12 @@ Item {
   // fixed: a menu that reflows as you move between sections looks jumpy, and
   // this is a touch wider than the Omarchy menu's own card because the
   // animation and shader rows put two buttons beside a search field.
-  readonly property int neededHeight: root.contentMargin * 2 + content.implicitHeight
+  //
+  // Measured against the card's own insets rather than against contentMargin:
+  // the border adds to them, and the few pixels that left unaccounted for were
+  // exactly enough to clip the bottom row, leaving the last button's border
+  // sitting on the card's edge instead of inside it.
+  readonly property int neededHeight: card.contentTopInset + card.contentBottomInset + content.implicitHeight
   readonly property int cardWidth: Math.min(Style.space(340), panel.width - Style.gapsOut * 2)
   readonly property int cardHeight: Math.min(root.neededHeight, Math.max(Style.space(160), panel.height - Style.gapsOut * 2))
 
@@ -91,7 +100,7 @@ Item {
   // worth the extra index bookkeeping for a single control.
   property int cursorIndex: 0
   property bool cursorActive: false
-  readonly property int cursorCount: 14
+  readonly property int cursorCount: 15
 
   function open(payloadJson) {
     root.opened = true
@@ -155,6 +164,7 @@ Item {
       case 11: root.bgPrev(); break
       case 12: root.bgNext(); break
       case 13: root.pickWallpaper(); break
+      case 14: root.toggleBarChip(); break
     }
   }
 
@@ -193,6 +203,10 @@ Item {
   }
   function toggleKeybindings() {
     if (service && service.toggleKeybindings) service.toggleKeybindings()
+  }
+
+  function toggleBarChip() {
+    if (service && service.setBarChip) service.setBarChip(!root.barChip)
   }
   function setDimStrength(v) {
     if (service && service.setDimStrength) service.setDimStrength(v)
@@ -598,6 +612,32 @@ Item {
                 bordered: true
                 hasCursor: root.cursorActive && root.cursorIndex === 13
                 onClicked: root.pickWallpaper()
+              }
+            }
+
+            PanelSeparator { foreground: root.foreground }
+
+            // The chip is the only part of the plugin that takes bar space,
+            // and it is off by default -- so the way back on belongs here,
+            // next to everything else the panel controls.
+            Column {
+              width: parent.width
+              spacing: root.contentSpacing
+
+              PanelSectionHeader { text: "BAR CHIP"; foreground: root.foreground; fontFamily: Style.font.family }
+
+              Toggle {
+                width: parent.width
+                label: "Show the bar chip"
+                description: root.barChip
+                  ? "On the bar. Everything works without it too"
+                  : "Off. This panel and the Omarchy menu work without it"
+                checked: root.barChip
+                foreground: root.foreground
+                accent: Color.accent
+                fontFamily: Style.font.family
+                hasCursor: root.cursorActive && root.cursorIndex === 14
+                onClicked: root.toggleBarChip()
               }
             }
           }

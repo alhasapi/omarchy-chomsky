@@ -38,6 +38,7 @@ Item {
   property bool resizeOnBorder: false
   property real dimStrength: 0.15
   property string keybindings: "omarchy"
+  property string barChip: "on"
 
   Component.onCompleted: {
     if (!root.helperPath) return
@@ -64,6 +65,7 @@ Item {
       root.resizeOnBorder = parsed.resizeOnBorder === true
       root.dimStrength = typeof parsed.dimStrength === "number" ? parsed.dimStrength : 0.15
       root.keybindings = parsed.keybindings === "dusky" ? "dusky" : "omarchy"
+      root.barChip = parsed.barChip === "on" ? "on" : "off"
     } catch (e) {}
   }
 
@@ -100,6 +102,8 @@ Item {
   function bgNext() { root.runAction(["bg-next"]) }
   function bgPrev() { root.runAction(["bg-prev"]) }
   function bgMenu() { root.runAction(["wallpaper", "menu"]) }
+
+  function setBarChip(on) { root.runAction(["bar", on ? "on" : "off"]) }
 
   function setKeybindings(mode) { root.runAction(["keys", mode]) }
   function toggleKeybindings() { root.setKeybindings(root.keybindings === "dusky" ? "omarchy" : "dusky") }
@@ -144,6 +148,15 @@ Item {
   }
   FileView {
     path: root.stateDir + "/window-behavior"
+    watchChanges: true
+    printErrors: false
+    onFileChanged: root.refresh()
+  }
+  // The chip's place on the bar is a setting in Omarchy's own shell.json,
+  // written by `omarchy bar set` as much as by chomsky-bar, so watch the file
+  // rather than assume this plugin made the last change.
+  FileView {
+    path: Quickshell.env("HOME") + "/.config/omarchy/shell.json"
     watchChanges: true
     printErrors: false
     onFileChanged: root.refresh()

@@ -78,6 +78,9 @@ the screen is too short for that. (A popup anchored to a bar widget is capped by
 the distance from the bar to the screen edge instead, which silently cut off
 whatever did not fit.)
 
+The rows are Animations, Shader, Window Behavior, Keybindings, Display,
+Wallpaper and Bar chip -- that last one being the switch for the chip below.
+
 Keyboard: `j`/`k` or the arrows move the cursor, `Enter` activates, `Esc`
 closes, and a click on the scrim closes. The animation and shader pickers are
 type-to-search dropdowns.
@@ -90,9 +93,13 @@ command away anywhere else (`hyprctl reload`).
 
 The chip is optional, and nothing else depends on it:
 
+From the panel, the **Bar chip** row at the bottom; from the Omarchy menu,
+**Style > Chomsky bar chip**; or from a terminal:
+
 ```bash
-~/.config/omarchy/plugins/alhasapi.chomsky/bin/chomsky-bar on    # put it on the bar
-~/.config/omarchy/plugins/alhasapi.chomsky/bin/chomsky-bar off   # take it off
+~/.config/omarchy/plugins/alhasapi.chomsky/bin/chomsky-bar on      # put it on the bar
+~/.config/omarchy/plugins/alhasapi.chomsky/bin/chomsky-bar off     # take it off
+~/.config/omarchy/plugins/alhasapi.chomsky/bin/chomsky-bar toggle  # whichever applies
 ```
 
 `off` moves the widget's entry out of `bar.layout` and into shell.json's
@@ -158,6 +165,7 @@ from the keyboard-driven menu even when the bar is hidden or the chip is off:
 ```
 Style
 ├── Chomsky panel                 the panel below (alias: `chomsky`)
+├── Chomsky bar chip              ✓ while the chip is on the bar
 ├── Animation                     animation picker; ✓ unless the preset is `disable`
 ├── Shader
 │   ├── Pick shader...            (alias: `shader`)
@@ -195,6 +203,22 @@ setting writes the same state.
 The rows keep working while the plugin is disabled or the chip is off the bar;
 they only stop once the plugin directory is deleted, at which point clicking one
 cleans the stale block out of the menu and says so.
+
+### Picking a wallpaper
+
+`Pick wallpaper...` opens Omarchy's own thumbnail grid, with the active
+wallpaper highlighted and a search field. It goes through Omarchy's
+`omarchy-menu-images` front-end when the image list fits, and otherwise drives
+the image-picker overlay with the *directories* and lets it enumerate them:
+
+`omarchy-menu-images` hands the picker its whole image list base64-encoded in a
+single command-line argument, and Linux caps one argument at 128 KiB. A
+`~/Pictures` with a thousand photos in it reaches that, and the picker then
+fails with `Argument list too long` instead of opening -- which is exactly what
+happened here. Given directories, the overlay runs its own `list.sh` with no
+size limit, at the cost of a few seconds of enumeration (one lookup per image)
+before the grid appears. Both paths end the same way: the picker writes the
+chosen path to a file and this plugin applies it with `omarchy-theme-bg-set`.
 
 ## How it stays out of your config
 
@@ -246,7 +270,7 @@ bin/chomsky-window  {on [dim],off,toggle [dim],current}
 bin/chomsky-keys    {dusky,omarchy,toggle,current,keys,reset}
 bin/chomsky-monitor-rotate {cw,ccw}
 bin/chomsky-wallpaper {list,current,next,prev,set <path>,menu}
-bin/chomsky-bar     {on,off,status}
+bin/chomsky-bar     {on,off,toggle,status}
 bin/chomsky-menu-install [--enable|--remove]
 ```
 
