@@ -28,10 +28,16 @@ run_capture "$SHIM_DIR/hyprctl" getoption something:unknown
 assert_failed "the hyprctl shim fails on an invocation it does not model"
 
 # --- the real-home guard notices changes ------------------------------------
-# Run against a throwaway "home" so the real one is never involved.
+# Run against a throwaway "home" so the real one is never involved, and cover
+# both shapes the guard has to handle: a path that is a file, and a path that is
+# a directory. The guard hashes the two differently (`sha256sum` vs `find`), and
+# the bug it had -- taking the path where the hash should be -- was only visible
+# in the directory case. Probing just a file made this test blind to it.
 probe_home="$(mktemp -d "$TEST_TMP/probe.XXXXXX")"
-mkdir -p "$probe_home/.config/omarchy"
+mkdir -p "$probe_home/.config/omarchy" "$probe_home/.local/state/omarchy/toggles/hypr"
 echo '{}' > "$probe_home/.config/omarchy/shell.json"
+echo 'hl.config({})' > "$probe_home/.local/state/omarchy/toggles/hypr/chomsky-shader.lua"
+
 # Deliberately not silencing stderr: a probe that fails to source the helpers
 # returns empty strings, which would compare equal and read as "the guard is
 # broken" instead of "the probe is broken".
@@ -48,18 +54,25 @@ if [[ -z "$before" ]]; then
   fail "the real-home probe produced no output" \
     "the probe is broken, so the guard's result would prove nothing either way"
 fi
+
 echo '{"changed": true}' > "$probe_home/.config/omarchy/shell.json"
-after_edit="$(probe_hash)"
-assert_ne "$after_edit" "$before" "the real-home guard notices an edited file"
+after_file_edit="$(probe_hash)"
+assert_ne "$after_file_edit" "$before" "the guard notices an edited file"
+
+echo 'hl.config({decoration = {screen_shader = "x"}})' \
+  > "$probe_home/.local/state/omarchy/toggles/hypr/chomsky-shader.lua"
+after_dir_edit="$(probe_hash)"
+assert_ne "$after_dir_edit" "$after_file_edit" \
+  "and an edited file inside a watched directory"
 
 rm -f "$probe_home/.config/omarchy/shell.json"
 after_delete="$(probe_hash)"
-assert_ne "$after_delete" "$after_edit" "and notices a deleted one"
+assert_ne "$after_delete" "$after_dir_edit" "and a deleted one"
 
 mkdir -p "$probe_home/.config/omarchy/extensions"
 echo 'x' > "$probe_home/.config/omarchy/extensions/omarchy-menu.jsonc"
 after_add="$(probe_hash)"
-assert_ne "$after_add" "$after_delete" "and notices a new file where there was none"
+assert_ne "$after_add" "$after_delete" "and a new file where there was none"
 
 # --- the sandbox is where writes land ---------------------------------------
 # A script that ignores HOME is the failure this catches: the guard would
