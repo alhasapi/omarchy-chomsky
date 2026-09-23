@@ -33,13 +33,14 @@ err() { echo "chomsky-keys: $*" >&2; }
 
 usage() {
   cat >&2 << EOF
-Usage: chomsky-keys [dusky|omarchy|toggle|current|keys|reset]
+Usage: chomsky-keys [dusky|omarchy|toggle|current|keys|check|reset]
 
   dusky     Use the Dusky keybindings
   omarchy   Use Omarchy's shipped keybindings
   toggle    Switch to the other one
   current   Print the mode in force
   keys      Print every key the switch touches
+  check     Prove the mode from the live keymap; exits non-zero on a problem
   reset     Remove the toggle file, leaving your config in charge
 EOF
   exit 1
@@ -59,6 +60,22 @@ current_mode() {
 
 reload_hyprland() {
   command -v hyprctl &> /dev/null && hyprctl reload &> /dev/null || true
+}
+
+# Every key the switch touches, read from the tables themselves: the selected
+# Dusky set plus the keys an Omarchy action was moved onto. This used to be a sed
+# over a KEYS table in the Lua module; the set is now derived from the ledger and
+# the remap table, so it is asked for rather than pattern-matched out of source.
+list_keys() {
+  command -v lua > /dev/null 2>&1 || {
+    err "lua is needed to list the keys: they are derived from keys/dusky-ledger.lua and keys/remaps.lua"
+    exit 1
+  }
+  lua - "$MODULE_DIR" << 'LUA'
+local dir = ...
+package.path = dir .. "/?.lua;" .. package.path
+for _, key in ipairs(require("chomsky_keys").keys()) do print(key) end
+LUA
 }
 
 write_toggle() {
@@ -89,9 +106,72 @@ EOF
   reload_hyprland
 }
 
+# Prove the mode from the live keymap instead of trusting the toggle file. This
+# is what catches the failure a file-based check cannot see: dusky mode selected
+# but a key still answering with an Omarchy action, a remap that never landed, a
+# binding of ours surviving a switch back. Read-only -- it asks Hyprland what is
+# bound and compares that with the tables in keys/.
+check_live() {
+  local missing=()
+  for tool in hyprctl jq lua; do
+    command -v "$tool" > /dev/null 2>&1 || missing+=("$tool")
+  done
+  if ((${#missing[@]} > 0)); then
+    err "check needs ${missing[*]}: hyprctl for the live keymap, jq to shape it, lua for the tables"
+    exit 1
+  fi
+
+  local mode
+  mode="$(current_mode)"
+  local status=0
+  local live_file
+  live_file="$(mktemp "${TMPDIR:-/tmp}/chomsky-keys-live.XXXXXX")"
+
+  # The dispatcher of a Lua binding is opaque ("__lua" plus an arg id), so the
+  # key, the description and the flags are what the audit can compare. The
+  # description is why every binding of ours is tagged "Dusky: ".
+  if ! hyprctl binds -j 2> /dev/null |
+    jq -r '.[] | [(.modmask|tostring), .key, (.description // ""), (.repeat|tostring)] | @tsv' \
+      > "$live_file"; then
+    err "could not read the live keymap (hyprctl binds -j | jq)"
+    rm -f "$live_file"
+    exit 1
+  fi
+
+  lua - "$MODULE_DIR" "$mode" "$live_file" << 'LUA' || status=$?
+local dir, mode, live_path = ...
+package.path = dir .. "/?.lua;" .. package.path
+local audit = require("audit")
+
+local file = assert(io.open(live_path, "r"))
+local text = file:read("a")
+file:close()
+
+local rows = audit.parse_tsv(text)
+local problems = audit.audit(mode, audit.index(rows))
+
+print("mode: " .. mode)
+print("live binds: " .. #rows)
+print("problems: " .. #problems)
+for _, problem in ipairs(problems) do
+  print(string.format("problem: %s -- %s [%s]", problem.key, problem.message, problem.source))
+end
+os.exit(#problems == 0 and 0 or 1)
+LUA
+
+  rm -f "$live_file"
+  if ((status == 0)); then
+    echo "chomsky-keys: $mode mode matches the live keymap"
+  else
+    err "$mode mode does not match the live keymap; the problems are listed above"
+  fi
+  return "$status"
+}
+
 case "${1:-current}" in
   current | "") current_mode ;;
-  keys) sed -n '/^local KEYS = {/,/^}/p' "$MODULE_DIR/chomsky_keys.lua" | sed -n 's/^  "\(.*\)",.*/\1/p' ;;
+  keys) list_keys ;;
+  check) check_live ;;
   dusky | omarchy)
     write_toggle "$1"
     echo "Keybindings: $1"

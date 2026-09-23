@@ -147,4 +147,92 @@ else
   fail "PluginRegistry.qml was not found" "the chip-off mechanism rests on it"
 fi
 
+# --- Omarchy's shipped bindings are pinned ----------------------------------
+# The toggle needs two facts only Omarchy has: which keys are already taken (a
+# remap target must never land on one) and what Omarchy's own binding was on a
+# key the port displaces (omarchy mode has to put it back). Those live in
+# keys/omarchy-shipped.lua. A snapshot like that goes stale in silence, so check
+# the installed Omarchy against it -- and prove the check can fail.
+snapshot_tool="$REPO_DIR/tests/lib/omarchy-snapshot.sh"
+assert_exec "$snapshot_tool" "the snapshot tool is executable"
+
+if ! command -v lua > /dev/null 2>&1; then
+  printf '  skip  lua not installed, the Omarchy binding snapshot was not checked\n'
+else
+  run_capture "$snapshot_tool" --check
+  if ((last_status == 0)); then
+    pass "the installed Omarchy still matches keys/omarchy-shipped.lua"
+  else
+    fail "Omarchy's shipped bindings no longer match the snapshot" \
+      "$(printf '%s\n' "$last_output" | head -n12 | tr '\n' ' ')"
+  fi
+
+  # A guard nobody has seen fail is not a guard. Copy the bindings into a
+  # throwaway tree, change one description, and expect the same command to
+  # notice. Nothing under $OMARCHY is touched.
+  drift_root="$TEST_TMP/omarchy-drift"
+  mkdir -p "$drift_root/default/hypr"
+  cp -r "$OMARCHY/default/hypr/bindings" "$drift_root/default/hypr/bindings"
+  cp "$OMARCHY/version" "$drift_root/version" 2> /dev/null || true
+  drift_file="$drift_root/default/hypr/bindings/tiling.lua"
+  sed -i 's/"Toggle window split"/"Toggle window split (renamed)"/' "$drift_file"
+  run_capture "$snapshot_tool" --check "$drift_root"
+  assert_failed "the snapshot check notices a renamed Omarchy binding"
+
+  # And a moved binding: the same action on a different key is the other half of
+  # what goes stale, and a description check alone would miss it.
+  sed -i 's/o\.bind("SUPER + Y"/o.bind("SUPER + INSERT"/' "$drift_file"
+  run_capture "$snapshot_tool" --check "$drift_root"
+  assert_failed "the snapshot check notices a moved Omarchy binding"
+
+  # The snapshot has to answer for every selected key Omarchy also ships, with a
+  # dispatcher it can actually rebuild: omarchy mode restores those verbatim, so
+  # an opaque one is a silent hole in "omarchy mode is stock Omarchy".
+  harness="$TEST_TMP/omarchy-owned.lua"
+  cat > "$harness" << 'LUA'
+-- Ask the snapshot about every key the ledger selects, under a stub of the API
+-- the dispatcher source is evaluated against. Nothing is dispatched.
+local repo = ...
+package.path = repo .. "/keys/?.lua;" .. package.path
+local ledger = require("dusky-ledger")
+local omarchy = require("omarchy-shipped")
+
+local function any()
+  return setmetatable({}, {
+    __call = function() return any() end,
+    __index = function() return any() end,
+  })
+end
+local env = { hl = { dsp = any() }, o = {} }
+
+local owned, problems = 0, {}
+for _, row in ipairs(ledger.selected()) do
+  if omarchy.occupied(row.key) then
+    owned = owned + 1
+    local ok, err = pcall(omarchy.restore, row.key, env)
+    if not ok then problems[#problems + 1] = row.key .. ": " .. tostring(err) end
+  end
+end
+
+print("owned=" .. owned)
+print("problems=" .. #problems)
+for _, problem in ipairs(problems) do print(problem) end
+LUA
+  run_capture lua "$harness" "$REPO_DIR"
+  assert_ran_ok "the Omarchy snapshot answers for the selected keys"
+  owned_count="$(printf '%s\n' "$last_output" | sed -n 's/^owned=//p')"
+  problem_count="$(printf '%s\n' "$last_output" | sed -n 's/^problems=//p')"
+  if [[ "$owned_count" =~ ^[0-9]+$ ]] && ((owned_count > 0)); then
+    pass "$owned_count selected keys are also bound by Omarchy, so they need remaps"
+  else
+    fail "no selected key was found in Omarchy's shipped set" "the snapshot or the ledger has drifted apart"
+  fi
+  if [[ "$problem_count" == "0" ]]; then
+    pass "every one of them restores verbatim (the dispatcher can be rebuilt)"
+  else
+    fail "$problem_count selected key(s) cannot be restored from the snapshot" \
+      "$(printf '%s\n' "$last_output" | tail -n +3 | head -n4 | tr '\n' ' ')"
+  fi
+fi
+
 finish_test
