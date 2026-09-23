@@ -12,6 +12,21 @@ printf '%s\n' "$*" >>"$state/hyprctl.calls"
 read_live() { [[ -f "$state/screen_shader" ]] && cat "$state/screen_shader" || true; }
 
 case "${1:-}" in
+# The keybinding audit reads the live keymap. Serving it from a fixture is what
+# lets `chomsky-keys check` be tested without a session: the fixture is written
+# by the test, so a clean keymap and a broken one are both reachable. No fixture
+# means nothing is bound.
+binds)
+	if [[ "${2:-}" != "-j" ]]; then
+		echo "hyprctl shim: unhandled binds invocation: ${2:-}" >&2
+		exit 1
+	fi
+	if [[ -f "$state/binds.json" ]]; then
+		cat "$state/binds.json"
+	else
+		echo '[]'
+	fi
+	;;
 getoption)
 	case "${2:-}" in
 	decoration:screen_shader)

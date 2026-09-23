@@ -45,7 +45,7 @@ take it off:
 | **Animation** | Switch or cycle through 12 Dusky animation presets (dusky, bounce, fade, mechanical, slowmotion, disable, …) |
 | **Shader** | Switch or cycle through 17 GLSL screen shaders (tints, grayscale, vignette, chromatic aberration, …), or turn them off |
 | **Window behavior** | Toggle border/gap resize with the bare cursor (no modifier) plus inactive-window dimming, with a strength slider |
-| **Keybindings** | Switch between Omarchy's shipped bindings and the Dusky port (see below) |
+| **Keybindings** | Switch between Omarchy's shipped bindings and a curated 43-key Dusky set, with every displaced Omarchy binding moved to a documented key (see below) |
 | **Display** | Rotate the focused monitor 90° either way; DPMS screen off |
 | **Wallpaper** | Cycle to the previous/next background across the active theme and `~/Pictures`, or pick one from a thumbnail grid |
 
@@ -120,43 +120,261 @@ survives the chip going away.
 ## Keybindings: Dusky or Omarchy
 
 Style > **Keybindings** in the menu (or the panel's toggle) switches Hyprland
-between Omarchy's shipped bindings and the Dusky port:
+between Omarchy's stock bindings and a curated set of Dusky's:
 
 | | |
 |---|---|
-| **Dusky** | `SUPER + H/J/K/L` vim focus, `SUPER + SHIFT + H/J` swap, arrows resize (repeating), `SUPER + ALT + A` animation picker, `SUPER + ALT + X` shader picker, `CTRL + ALT + R`/`+SHIFT` rotate, `ALT + F7`/`F8` DPMS, `SUPER + SHIFT + R` reload, `SUPER + SHIFT + ESCAPE` click-to-kill, `SUPER + apostrophe` next wallpaper, `SUPER + SHIFT + apostrophe` previous wallpaper |
-| **Omarchy** | The shipped defaults, including the seven bindings Dusky takes over: `SUPER + J` split, `SUPER + K` keybindings, `SUPER + L` workspace layout, `SUPER + arrow` focus |
+| **Dusky** | 43 of Dusky's keys: vim navigation (`SUPER + H/J/K/L` focus, `SUPER + SHIFT + H/J/K/L` moves), arrows for resizing, group and workspace keys, this plugin's own menus (animations, shaders, rotation, DPMS, wallpapers, screenshots) and a handful of Dusky habits Omarchy has no key for |
+| **Omarchy** | Stock Omarchy on every key -- including the 13 keys this port takes in dusky mode, which get Omarchy's own binding back |
 
-The three Omarchy bindings the vim keys displace move rather than disappear:
-split → `SUPER + Y`, keybindings → `SUPER + SHIFT + K`, workspace layout →
-`SUPER + SHIFT + L`. In Omarchy mode the seven displaced defaults are bound
-again and the rest of the Dusky keys are left unbound, so "Omarchy" mode really
-is Omarchy's set and not Omarchy's plus extras.
+Two rules make the switch predictable.
+
+**The port is curated, not exhaustive.** Dusky binds 167 keys. Porting all of
+them would drag in Dusky's own tooling -- Waybar, wayclick, its rofi menus,
+control centre, TTS/STT, drive and snapshot managers -- and would displace most
+of Omarchy's window management for no gain. So the port selects a binding when
+all three hold: it **differs from what Omarchy does on that key**, it is
+**implementable** here (an Omarchy command, a Hyprland dispatcher, or one of this
+plugin's own commands), and **Omarchy does not already provide the same action on
+another key**, so the port adds muscle memory rather than a second binding for
+something that already has one. The selection is data, in
+`keys/dusky-ledger.lua`: **43 selected, 124 left alone, each with its reason**,
+and all 167 of Dusky's keys have a row. The audit fails if a Dusky key has no
+row, so the boundary is a decision rather than an omission.
+
+**Nothing Omarchy had is dropped.** Where a selected key already carries an
+Omarchy binding, that action moves to a nearby key:
+
+| Omarchy's action | Was on | Now on | How |
+|---|---|---|---|
+| Toggle window split | `SUPER + J` | `SUPER + Y` | Dusky already binds this action on `SUPER + Y` |
+| Keybindings | `SUPER + K` | `CTRL + SHIFT + SPACE` | Dusky already binds this action on `CTRL + SHIFT + SPACE` |
+| Toggle workspace layout | `SUPER + L` | `SUPER + SHIFT + CTRL + L` | Bound by this port on the new key, with Omarchy's own dispatcher |
+| Focus on left window | `SUPER + LEFT` | `SUPER + h` | Dusky already binds this action on `SUPER + h` |
+| Focus on right window | `SUPER + RIGHT` | `SUPER + l` | Dusky already binds this action on `SUPER + l` |
+| Focus on above window | `SUPER + UP` | `SUPER + k` | Dusky already binds this action on `SUPER + k` |
+| Focus on below window | `SUPER + DOWN` | `SUPER + j` | Dusky already binds this action on `SUPER + j` |
+| Tmux keybindings | `SUPER + ALT + K` | `SUPER + CTRL + ALT + K` | Bound by this port on the new key, with Omarchy's own dispatcher |
+| Next workspace | `SUPER + TAB` | `SUPER + SHIFT + TAB` | Dusky already binds this action on `SUPER + SHIFT + TAB` |
+| Previous workspace | `SUPER + SHIFT + TAB` | `SUPER + CTRL + SHIFT + TAB` | Bound by this port on the new key, with Omarchy's own dispatcher |
+| Toggle scratchpad | `SUPER + S` | `SUPER + CTRL + ALT + S` | Bound by this port on the new key, with Omarchy's own dispatcher |
+| Move window to scratchpad | `SUPER + ALT + S` | `SUPER + ALT + SHIFT + S` | Bound by this port on the new key, with Omarchy's own dispatcher |
+| Toggle window floating/tiling | `SUPER + T` | `SUPER + ALT + T` | Bound by this port on the new key, with Omarchy's own dispatcher |
+
+Where the moved action is one Dusky already binds elsewhere, no new binding is
+needed: Dusky binds window split on `SUPER + Y` and the keybindings menu on
+`CTRL + SHIFT + SPACE`, so Omarchy's split and keybindings menu live there in
+dusky mode. Where it is not, the port binds Omarchy's action on the new key with
+**Omarchy's own dispatcher**, read out of `keys/omarchy-shipped.lua` rather than
+copied by hand -- so when Omarchy changes a dispatcher, it changes here too.
+
+Remaps exist only in dusky mode. "Omarchy" mode is stock Omarchy: every binding
+back on its original key, and nothing of this port's left anywhere.
+
+### The keys that are selected
+
+| Key | Dusky's binding | Status | Bound to |
+|---|---|---|---|
+| `CTRL + SHIFT + SPACE` | Show Keybinds | equivalent | `omarchy-menu-keybindings` |
+| `CTRL + SPACE` | Rofi Wallpaper Selector | ported | `chomsky wallpaper menu` |
+| `SUPER + apostrophe` | Cycle Next Wallpaper | ported | `chomsky bg-next` |
+| `SUPER + SHIFT + apostrophe` | Cycle Fav Wallpaper | deviation | `chomsky bg-prev` |
+| `CTRL + ALT + R` | Rotate Screen Clockwise | ported | `chomsky rotate cw` |
+| `CTRL + ALT + SHIFT + R` | Rotate Screen Anti-Clockwise | ported | `chomsky rotate ccw` |
+| `ALT + F7` | Screen Off DPMS | ported | `dpms:off` *(locked)* |
+| `ALT + F8` | Screen On DPMS | ported | `dpms:on` *(locked)* |
+| `SUPER + SHIFT + R` | Reload Hyprland | ported | `chomsky reload` |
+| `SUPER + ALT + S` | Shader Menu | ported | `chomsky shader menu` |
+| `SUPER + ALT + X` | Disable Shader | ported | `chomsky shader off` |
+| `SUPER + ALT + V` | Vibrant Shader | ported | `chomsky shader set 14_vibrance` |
+| `SUPER + ALT + A` | Hyprland Animation Rofi Menu | ported | `chomsky anim menu` |
+| `SUPER + period` | Toggle Opacity | ported | `wprop:opaque` *(locked)* |
+| `SUPER + B` | Color Picker | equivalent | `pkill hyprpicker || hyprpicker -a` |
+| `SUPER + S` | Quick Screenshot | equivalent | `omarchy-capture-region` |
+| `SUPER + T` | OCR Selection | equivalent | `omarchy-capture-text` |
+| `SUPER + N` | Notification History | equivalent | `omarchy-shell notifications showHistory` |
+| `SUPER + ALT + D` | Clear Screen Notifications | equivalent | `omarchy-shell notifications dismissAll` |
+| `SUPER + M` | Lock Screen | equivalent | `omarchy-system-lock` |
+| `SUPER + Y` | Toggle Window Split | ported | `layout:togglesplit` |
+| `SUPER + ALT + H` | Group Prev Tab | ported | `group:prev` |
+| `SUPER + ALT + L` | Group Next Tab | ported | `group:next` |
+| `SUPER + ALT + SHIFT + H` | Group Merge Left (create if none) | ported | `winto:l` |
+| `SUPER + ALT + SHIFT + L` | Group Merge Right (create if none) | ported | `winto:r` |
+| `SUPER + ALT + SHIFT + K` | Group Merge Up (create if none) | ported | `winto:u` |
+| `SUPER + ALT + SHIFT + J` | Group Merge Down (create if none) | ported | `winto:d` |
+| `SUPER + ALT + U` | Group Move Out (ungroup) | ported | `wout` |
+| `SUPER + ALT + K` | Group Lock Toggle | ported | `group:lock` |
+| `SUPER + h` | Focus Left | ported | `focus:l` |
+| `SUPER + l` | Focus Right | ported | `focus:r` |
+| `SUPER + k` | Focus Up | ported | `focus:u` |
+| `SUPER + j` | Focus Down | ported | `focus:d` |
+| `SUPER + SHIFT + h` | Move Left | ported | `wmove:l` *(repeating)* |
+| `SUPER + SHIFT + l` | Move Right | ported | `wmove:r` *(repeating)* |
+| `SUPER + SHIFT + k` | Move Up | ported | `wmove:u` *(repeating)* |
+| `SUPER + SHIFT + j` | Move Down | ported | `wmove:d` *(repeating)* |
+| `SUPER + right` | Resize Width + | ported | `resize:30:0` *(repeating)* |
+| `SUPER + left` | Resize Width - | ported | `resize:-30:0` *(repeating)* |
+| `SUPER + up` | Resize Height - | ported | `resize:0:-30` *(repeating)* |
+| `SUPER + down` | Resize Height + | ported | `resize:0:30` *(repeating)* |
+| `SUPER + TAB` | Last Workspace | ported | `ws:previous` *(repeating)* |
+| `SUPER + SHIFT + TAB` | Cycle Next WS | ported | `ws:e+1` *(repeating)* |
+
+### The keys that are left alone, and why
+
+Every remaining Dusky binding, with the reason it is not ported. Each excluded
+row names its own reason, and they fall into four kinds: Omarchy already does
+exactly this on this key; Omarchy already does this same action on another key;
+it is Dusky-only tooling with no Omarchy equivalent; or taking the key would
+displace an Omarchy binding that matters more than the Dusky one -- the
+cursor-zoom and cursor-size families, for instance, sit on Omarchy's
+window-resizing keys.
+
+| Why it is not ported | Keys |
+|---|---|
+| Omarchy binds SUPER + ALT + SPACE to the apps menu. | `ALT + SPACE` |
+| Omarchy binds SUPER + CTRL + E to emojis. | `SUPER + CTRL + SPACE` |
+| Omarchy binds SUPER + CTRL + Q and XF86Calculator to the calculator. | `SUPER + CTRL + SHIFT + SPACE` |
+| Omarchy binds SUPER + SHIFT + CTRL + SPACE to the theme menu. | `SUPER + SHIFT + SPACE` |
+| Omarchy binds SUPER + SPACE to the Omarchy menu, which fills the same role as Dusky's control centre. | `SUPER + SPACE` |
+| Dusky-only system-overview panel; Omarchy has no equivalent. | `CTRL + ALT + SPACE` |
+| Omarchy binds SUPER + ESCAPE and XF86PowerOff to the system menu. | `ALT + SHIFT + SPACE`, `ALT + F4` |
+| Omarchy binds SUPER + CTRL + T to the activity monitor. | `CTRL + SHIFT + escape` |
+| Omarchy binds SUPER + CTRL + W to the network panel. | `ALT + 1` |
+| Omarchy binds SUPER + CTRL + B to the Bluetooth panel. | `ALT + 2` |
+| Omarchy binds SUPER + CTRL + A to the audio panel. | `ALT + 3` |
+| Part of Dusky's ALT + N quick-tool group; the wallpaper picker is selected on CTRL + SPACE. | `ALT + 4` |
+| Dusky-only drive manager (browser volume lock). | `ALT + 5`, `ALT + SHIFT + 5` |
+| Dusky-only game-mode submap that suspends keybindings. | `ALT + 6` |
+| Dusky-only Waybar toggle. | `ALT + 9` |
+| Dusky-only system-tray TUI. | `ALT + 0` |
+| Dusky-only Waybar config swap. | `SUPER + ALT + W`, `SUPER + ALT + SHIFT + W` |
+| Dusky-only quick panel. | `ALT + V` |
+| Omarchy binds SUPER + SLASH to monitor scaling. | `SUPER + F` |
+| Omarchy binds SUPER + ALT + SLASH to scaling down. | `SUPER + SHIFT + F` |
+| Dusky-only process killer. | `SUPER + semicolon` |
+| Dusky-only Wayclick key-press sounds. | `SUPER + U` |
+| Dusky-only key-press OSD. | `SUPER + SHIFT + U` |
+| Omarchy binds SUPER + SHIFT + M to launching and focusing Music; Dusky's special workspace is a Dusky-only construct. | `SUPER + SHIFT + M` |
+| Global blur/opacity/shadow combo; the per-window toggle is selected on SUPER + period instead. | `SUPER + ALT + period` |
+| Omarchy uses the SUPER + comma family for notifications. | `SUPER + comma` |
+| Omarchy resizes windows with the SUPER + minus/equal family. | `SUPER + equal`, `SUPER + minus` |
+| Omarchy binds SUPER + BACKSPACE to window transparency. | `SUPER + BACKSPACE` |
+| Part of Omarchy's SHIFT + minus/equal window-resizing family. | `SUPER + SHIFT + equal`, `SUPER + SHIFT + minus` |
+| Part of Dusky's cursor-size family, which collides with Omarchy's window resizing. | `SUPER + SHIFT + mouse_up`, `SUPER + SHIFT + mouse_down` |
+| Omarchy binds SUPER + SHIFT + BACKSPACE to window gaps. | `SUPER + SHIFT + BACKSPACE` |
+| Dusky-only terminal clipboard tool; Omarchy binds SUPER + V to universal paste. | `SUPER + V` |
+| Omarchy binds PRINT to a full screenshot already. | `SHIFT + Print` |
+| Same action as SUPER + S, which is selected. | `SUPER + SHIFT + S` |
+| Omarchy binds PRINT to a screenshot already. | `Print` |
+| Omarchy binds SUPER + CTRL + C to the capture menu. | `SHIFT + CTRL + ALT + space` |
+| Omarchy binds ALT + PRINT to screen recording. | `ALT + R` |
+| Dusky-only image search. | `SUPER + SHIFT + G` |
+| Dusky-only game launcher. | `SUPER + ALT + G` |
+| Dusky-only games TUI. | `SUPER + ALT + SHIFT + G` |
+| Same action as SUPER + T, which is selected. | `SUPER + SHIFT + T` |
+| Dusky-only LLM side panel. | `SUPER + ALT + O` |
+| Dusky-only music recognition. | `SUPER + ALT + M` |
+| Dusky-only text-to-speech. | `SUPER + O` |
+| Dusky-only text-to-speech voice conversion. | `SUPER + SHIFT + O` |
+| Dusky-only Parakeet speech-to-text; Omarchy binds SUPER + CTRL + X and F9 to dictation. | `SUPER + I` |
+| Omarchy binds SUPER + ALT + F to full width, and SUPER + ALT + comma already invokes the last notification. | `SUPER + ALT + F` |
+| Omarchy binds SUPER + W to close window; SUPER + C is universal copy, paired with SUPER + V and SUPER + X. | `SUPER + C` |
+| Dusky-only focused-process killer. | `SUPER + SHIFT + C` |
+| Omarchy binds SUPER + F to full screen. | `SUPER + A` |
+| Omarchy binds SUPER + ALT + F to full width (maximized). | `SUPER + SHIFT + A` |
+| Omarchy binds SUPER + O to pop a window out (float and pin); SUPER + X is universal cut. | `SUPER + X` |
+| Omarchy binds SUPER + T to the float/tile toggle. | `SUPER + D` |
+| Omarchy binds SUPER + P to pseudo window. | `SUPER + SHIFT + D` |
+| Omarchy binds SUPER + G to the same group toggle. | `SUPER + G` |
+| Omarchy binds ALT + SHIFT + TAB to focusing the previous window; Dusky's previous workspace also lives on SUPER + TAB. | `ALT + SHIFT + TAB` |
+| Omarchy binds SUPER + scroll to the same workspace cycling. | `SUPER + mouse_down`, `SUPER + mouse_up` |
+| Omarchy already binds toggle-scratchpad, remapped off SUPER + S by this port. | `SUPER + Z` |
+| Omarchy already binds move-to-scratchpad, remapped off SUPER + ALT + S by this port. | `SUPER + SHIFT + Z` |
+| Omarchy already binds this key to the equivalent workspace switch. | `SUPER + 1`, `SUPER + 2`, `SUPER + 3`, `SUPER + 4`, `SUPER + 5`, `SUPER + 6`, `SUPER + 7`, `SUPER + 8`, `SUPER + 9`, `SUPER + 0` |
+| Omarchy already binds this key to the equivalent window-to-workspace move. | `SUPER + SHIFT + 1`, `SUPER + SHIFT + 2`, `SUPER + SHIFT + 3`, `SUPER + SHIFT + 4`, `SUPER + SHIFT + 5`, `SUPER + SHIFT + 6`, `SUPER + SHIFT + 7`, `SUPER + SHIFT + 8`, `SUPER + SHIFT + 9`, `SUPER + SHIFT + 0` |
+| Omarchy binds SUPER + ALT + N to grouped window N, and its silent workspace move is SUPER + SHIFT + ALT + N. | `SUPER + ALT + 1`, `SUPER + ALT + 2`, `SUPER + ALT + 3`, `SUPER + ALT + 4`, `SUPER + ALT + 5`, `SUPER + ALT + 6`, `SUPER + ALT + 7`, `SUPER + ALT + 8`, `SUPER + ALT + 9`, `SUPER + ALT + 0` |
+| Omarchy binds SUPER + mouse drag to moving a window. | `SUPER + mouse:272` |
+| Omarchy binds SUPER + mouse drag to resizing a window. | `SUPER + mouse:273` |
+| Omarchy binds the same key to the same action. | `XF86AudioRaiseVolume`, `XF86AudioLowerVolume`, `XF86AudioMute`, `XF86AudioMicMute`, `XF86MonBrightnessUp`, `XF86MonBrightnessDown`, `ALT + XF86AudioRaiseVolume`, `ALT + XF86AudioLowerVolume`, `ALT + XF86MonBrightnessUp`, `ALT + XF86MonBrightnessDown`, `XF86KbdBrightnessUp`, `XF86KbdBrightnessDown`, `XF86AudioNext`, `XF86AudioPrev`, `XF86AudioPlay`, `XF86AudioPause` |
+| Dusky-only live-radio menu. | `SUPER + SHIFT + B` |
+| Omarchy has no media-stop action; play/pause is on the other media keys. | `XF86AudioStop` |
+| Omarchy binds SUPER + P to pseudo window; media play/pause is on the XF86 keys. | `SUPER + P` |
+| Omarchy binds SHIFT + XF86AudioPause to switching media source. | `SUPER + SHIFT + P` |
+| Omarchy binds XF86AudioMute to muting. | `ALT + P` |
+| Dusky-only mono-audio toggle. | `ALT + M` |
+| Omarchy binds SHIFT + XF86AudioMute to switching audio output. | `ALT + O` |
+| Dusky-only input-source switcher. | `ALT + I` |
+| Dusky-only audio studio and voice DSP. | `ALT + N` |
+| Omarchy binds the same key to the calculator. | `XF86Calculator` |
+
+### One binding that is not Dusky's at all
+
+Click-to-kill is this port's own, not Dusky's: Dusky kills a process with
+`SUPER + SHIFT + C` and has no click-to-kill key. It has shipped here since the
+first port, so it lives in `keys/extras.lua` rather than disappearing in a
+tidy-up, and `check` audits it like everything else.
+
+| Key | What it does | Why it is here |
+|---|---|---|
+| `SUPER + SHIFT + ESCAPE` | Kill window (click) | Kept from this port's first release; Dusky has no click-to-kill binding. |
+
+### The two keys that used to hold Omarchy's menus
+
+An earlier version of this port parked Omarchy's keybindings menu and
+workspace-layout toggle on `SUPER + SHIFT + K` and `SUPER + SHIFT + L`. Those are
+Dusky's own keys -- Move Up and Move Right -- so that was taking them. The menus
+now move out of Dusky's way instead (`SUPER + CTRL + ALT + K` and
+`SUPER + SHIFT + CTRL + L`), and `SUPER + SHIFT + K` / `SUPER + SHIFT + L` are
+Dusky's moves again.
+
+### Checking the live keymap
 
 ```bash
-bin/chomsky-keys            # print the mode in force
+bin/chomsky-keys            # the mode in force
 bin/chomsky-keys dusky
 bin/chomsky-keys omarchy
 bin/chomsky-keys toggle
-bin/chomsky-keys keys       # list every key the switch touches
+bin/chomsky-keys keys       # every key the switch touches (50 of them)
+bin/chomsky-keys check      # compare the live keymap with the mode in force
 bin/chomsky-keys reset      # drop the switch; leave your config in charge
 ```
 
-The switch is one generated file in Omarchy's own toggle-flag directory
+`check` is the honest one. The mode is a file on disk, and a file can be right
+while the session is wrong: a binding that failed to take, a leftover from the
+other mode, another plugin holding a key this port thinks it owns. So `check`
+reads `hyprctl binds -j` and compares. In dusky mode every selected key must
+carry its Dusky binding, every remapped action must be live on its new key, and
+no key this port owns may still be answering with an Omarchy action. In omarchy
+mode Omarchy's own binding must be back on every key this port owns, and nothing
+of this port's may remain. It exits non-zero and names each problem together
+with what it thinks the cause is: an Omarchy default, your own config, or this
+port. Every binding the port makes is described `Dusky: ...`, which is what
+makes that readable rather than guessed.
+
+### How the switch works
+
+The switch is one generated file in Omarchy's own toggle directory
 (`~/.local/state/omarchy/toggles/hypr/chomsky-keys.lua`), which
 `default/hypr/toggles.lua` sources last on every `hyprctl reload` -- after
 Omarchy's defaults *and* after your own `~/.config/hypr/bindings.lua`. Loading
-last is what lets one mode win over the other without editing either, and what
-makes it a reload rather than a logout. The binding sets themselves live in
-`keys/chomsky_keys.lua`; the seven Omarchy defaults it restores are copied from
-`$OMARCHY_PATH/default/hypr/bindings/`, and `hyprctl binds -j` shows what is
-live.
+last is what lets the mode settle the disagreement without editing either, and
+what makes switching a reload rather than a logout. Both modes clear the same 50
+keys first, so nothing can survive a switch in either direction.
 
-Nothing is touched until you switch for the first time: with no toggle file
-there are no Chomsky bindings at all. If you had already ported some Dusky
-bindings into your own `~/.config/hypr/bindings.lua`, you can leave them -- the
-toggle loads last and wins in both directions -- or delete that section, since
-the plugin now owns those keys.
+`keys/chomsky_keys.lua` holds no decisions; it is a consumer of four data files:
+`keys/dusky-ledger.lua` (what Dusky binds, and what is selected),
+`keys/remaps.lua` (where displaced Omarchy actions go), `keys/extras.lua` (this
+port's own binding) and `keys/omarchy-shipped.lua` (Omarchy's bindings, pinned
+from `$OMARCHY_PATH/default/hypr/bindings/`).
+`tests/lib/dusky-snapshot.sh` and `tests/lib/omarchy-snapshot.sh` regenerate the
+two pinned snapshots, and their `--check` modes are what the test suite runs --
+so an upstream move fails the suite instead of drifting quietly.
+
+Nothing is touched until you switch for the first time: with no toggle file there
+are no Chomsky bindings at all. If you had already ported some Dusky bindings into
+your own `~/.config/hypr/bindings.lua`, **that section is obsolete now** -- this
+plugin owns those keys, and `check` reports anything a hand-port leaves behind.
+Delete it, or leave it and let the toggle win: it loads last either way.
 
 ## Omarchy menu rows
 
@@ -267,7 +485,7 @@ or your own keybinds:
 bin/chomsky-anim    {list,set <name>,current,next,prev,off,menu}
 bin/chomsky-shader  {list,set <name>,off,toggle,current,next,prev,restore,menu}
 bin/chomsky-window  {on [dim],off,toggle [dim],current}
-bin/chomsky-keys    {dusky,omarchy,toggle,current,keys,reset}
+bin/chomsky-keys    {dusky,omarchy,toggle,current,keys,check,reset}
 bin/chomsky-monitor-rotate {cw,ccw}
 bin/chomsky-wallpaper {list,current,next,prev,set <path>,menu}
 bin/chomsky-bar     {on,off,toggle,status}
@@ -342,7 +560,18 @@ more than stub: `hyprctl` models the asymmetry the shader code depends on (a
 reload re-reads the toggle directory and drops runtime values), so the original
 "panel shows a shader that is not painted" bug can be reproduced in a test. A
 shim asked for something it does not model fails loudly rather than quietly
-succeeding.
+succeeding. The `hyprctl` shim also serves a keymap, so the keybinding audit can
+be run against a keymap the test writes -- a matching one and a broken one.
+
+The keybinding tables are checked against their sources, not read. `t_keys.sh`
+runs the real `keys/chomsky_keys.lua` under the stub and asserts what each mode
+binds and clears; audits the ledger, remap and extras tables against both pinned
+snapshots; and then breaks each thing those audits exist to catch (a key
+dropped, a spelling drifted, a reason missing, a remap target taken or parked on
+a Dusky key, a remap row deleted), because an assertion nobody has seen fail is
+decoration. `t_upstream.sh` regenerates the Omarchy snapshot in a throwaway tree
+with one binding renamed and another moved, and requires the check to notice
+both.
 
 | Group | What it holds |
 | --- | --- |
@@ -351,12 +580,12 @@ succeeding.
 | `t_invariants.sh` | executable bits, manifest, Lua compiles, and the cross-file contracts: QML subcommands exist, watched state files are ones a script writes, menu rows point at scripts that exist |
 | `t_shader.sh` | applied shader survives a reload, `current` reads Hyprland rather than a record, `restore` converges both ways |
 | `t_anim.sh`, `t_window.sh` | presets and window behaviour, including "no toggle file means nothing is active" |
-| `t_keys.sh` | runs the real Lua under a stub `hl` API: no mode may bind a key it does not clear first |
+| `t_keys.sh` | runs the real tables under a stub `hl` API: no mode may bind a key it does not clear first, dusky mode must match the ledger and the remaps, omarchy mode must restore Omarchy's own bindings, and the tables must still catch nine deliberately broken variants |
 | `t_bar.sh` | moving the chip preserves every other bar entry and the widget's own settings, and refuses a `shell.json` it cannot parse |
 | `t_wallpaper.sh` | cycling, plus the picker's two routes and the 128 KiB argument it must never build |
 | `t_menu.sh` | install is idempotent, ten concurrent installs leave one block, removal is clean, an unparseable row is refused |
 | `t_status.sh` | every field the panel reads, each following its state rather than a memory of it |
-| `t_upstream.sh` | the Omarchy interfaces this leans on, so an update that moves one fails here instead of quietly breaking a feature |
+| `t_upstream.sh` | the Omarchy interfaces this leans on, so an update that moves one fails here instead of quietly breaking a feature, plus the pinned Omarchy binding snapshot |
 | `t_clis.sh` | rotation, DPMS, reload, and the `~/.local/bin` wrappers |
 | `t_qml.sh` | the panel, rendered: the card fits its content, nothing is truncated, and every cursor index lights a control. Opt-in (`--with-qml`) |
 
@@ -380,7 +609,8 @@ weight are not something a test can judge -- see *Not covered* below.
 Per-app window-sizing and floating rules from the original Dusky port are
 config-file territory (window rules in a `.lua` file), not something a plugin
 should own -- add them to your own `~/.config/hypr/windows.lua` if you want
-them. Click-to-kill *is* covered: it is part of the Dusky keybinding set.
+them. Click-to-kill is covered, but it is this port's own binding rather than
+Dusky's -- see `keys/extras.lua`.
 
 The pre-2.0 `theme-from-wallpaper` feature (generate a whole Omarchy theme from
 an image with `matugen`) was dropped: Omarchy's own `Style > Theme` covers theme
